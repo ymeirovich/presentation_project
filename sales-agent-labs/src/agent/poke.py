@@ -25,7 +25,7 @@ def _extract_pokemon_fields(data:Dict) -> PokemonInfo:
         sprite = data["sprites"]["front_default"] # may be None for some
         info: PokemonInfo={
             "name": data["name"],
-            "id": data["id"],
+            "id": data["id"], 
             "height_dm": data["height"],  # decimeters
             "weight_hg": data["weight"],  # hectograms
             "abilities": abilities,
