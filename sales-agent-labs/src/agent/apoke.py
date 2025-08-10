@@ -39,15 +39,17 @@ async def aget_pokemon(name: str) -> PokemonInfo:
     except Exception as e:
         raise ExternalAPIError(f"Failed to fetch {url}: {e!s}") from e
     return _extract(data)
-    
-async def aget_many(names: Iterable[str]) -> List[PokemonInfo]:
-    """
-    Fetch multiple Pokemons by name concurrently.
-    If one fails, we still wait for others and then raise the first error.
-    """
-    tasks = [asyncio.create_task(aget_pokemon(n)) for n in names]
+
+async def aget_many(names: Iterable[str], max_concurrency: int=5) -> List[PokemonInfo]:
+    sem = asyncio.Semaphore(max_concurrency)
+    async def guarded(name:str) -> PokemonInfo:
+        async with sem:
+            return await aget_pokemon(name)
+        
+    tasks= [asyncio.create_task(guarded(n)) for n in names]
     results: List[PokemonInfo] = []
     errors: List[Exception] = []
+
     for task in asyncio.as_completed(tasks):
         try:
             results.append(await task)
@@ -55,6 +57,5 @@ async def aget_many(names: Iterable[str]) -> List[PokemonInfo]:
             errors.append(e)
 
     if errors:
-        # Surface the first error (you could aggregate/log all)
         raise errors[0]
     return results
