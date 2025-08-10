@@ -1,0 +1,11 @@
+{
+  "title": "Demo",
+  "subtitle": "Over-length script example",
+  "bullets": [
+    "One",
+    "Two",
+    "Three"
+  ],
+  "script": "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word",
+  "image_prompt": "A generic dashboard"
+}

@@ -1,0 +1,11 @@
+{
+  "title": "Acme + NovaCloud",
+  "subtitle": "Cut ETL time by 67% with managed pipelines",
+  "bullets": [
+    "Automate schema drift handling",
+    "Lower infra costs via spot-aware scaling",
+    "SOC2-ready audit trails"
+  ],
+  "script": "Acme teams spend hours weekly on pipeline fixes. NovaCloud automates schema drift, reduces costs with spot-aware scaling, and provides SOC2-ready audit trails. In pilots, teams saw 67% faster ETL and 30% lower spend. We integrate with your stack so deployment is quick, without replatforming.",
+  "image_prompt": "A modern enterprise dashboard showing pipeline success rates and cost savings, flat illustration style"
+}
