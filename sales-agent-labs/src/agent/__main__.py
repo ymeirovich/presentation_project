@@ -7,6 +7,7 @@ from .errors import AgentError
 from .apoke import aget_many
 import json, pathlib
 from .validation import validate_sales_slide_payload, ValidationError
+from .validate_payload import validate_sales_slide_payload as cmd_validate_slide
 
 
 
@@ -79,7 +80,6 @@ def cmd_validate_json(args:list[str]) -> int:
     return 0
 
 
-
 def main():
     configure_logging()
     log= logging.getLogger("agent")
@@ -92,6 +92,29 @@ def main():
             sys.exit(cmd_fetch_many(rest))
         if cmd=="validate-json":
             sys.exit(cmd_validate_json(rest))
+        if cmd=="validate-slide":
+            if not rest:
+                print("Usage: python -m agent validate-slide <path/to.json>")
+                sys.exit(2)
+            
+            path = pathlib.Path(rest[0])
+            if not path.exists():
+                print(f"❌ File not found: {path}")
+                sys.exit(2)
+
+            data = json.loads(path.read_text(encoding="utf-8"))
+            try:
+                model = cmd_validate_slide(data)
+                print("✅ Valid\n", model.model_dump(), sep="")
+            except ValidationError as e:
+                # Pydantic aggregates errors by field; perfect for user feedback
+                print("❌ Invalid:")
+                for err in e.errors():
+                    loc = ".".join(str(p) for p in err["loc"])
+                    msg = err["msg"]
+                    print(f"- {loc}: {msg}")
+                sys.exit(1)
+            sys.exit(0)
 
     log.info("Try: python -m agent fetch-pokemon pikachu bulbasaur charmander")
     print("👋 Nothing to do. See logs above.")
