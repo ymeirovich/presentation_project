@@ -1,0 +1,13 @@
+{
+  "title": "Acme FinTech: Streamline ETL, Reduce Costs & Risk",
+  "subtitle": "Addressing Schema Drift & Infrastructure Spending",
+  "bullets": [
+    "80+ ETL pipelines experiencing 6-10 engineer-hours/week lost to schema drift incidents.",
+    "CFO mandates 25% infrastructure cost reduction this quarter.",
+    "Current stack: Databricks, Airflow, Snowflake, Terraform; SOC2 compliant.",
+    "Managed ETL solutions offer potential for 30% infrastructure savings & 60% faster schema change handling (based on similar team pilots).",
+    "Prioritize solutions ensuring audit trails & minimizing replatforming risk before upcoming security audit."
+  ],
+  "script": "Acme FinTech's data engineering team struggles with schema drift in their 80+ ETL pipelines, costing 6-10 engineer-hours weekly.  The CFO demands a 25% infrastructure cost reduction.  A managed ETL solution offers a potential solution, with pilot programs showing 30% infra savings and 60% faster schema changes.  However, SOC2 compliance and an upcoming security audit necessitate careful consideration of solution compatibility and auditability. We need a solution that minimizes replatforming while adding governance and audit trails.",
+  "image_prompt": "Graph showing cost savings and efficiency gains from managed ETL solutions."
+}

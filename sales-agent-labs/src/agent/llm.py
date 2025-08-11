@@ -2,46 +2,50 @@ from __future__ import annotations
 import json
 import logging
 from typing import List, Any, Dict
-from tenacity import retry, stop_after_attempt, wait_exponential
-from openai import OpenAI
+import google.generativeai as genai
 from .config import settings
 
 log = logging.getLogger("agent.llm")
-def _client() -> OpenAI:
-    if not settings.OPENAI_API_KEY:
-        raise RuntimeError("Missing OPENAI_API_KEY in environment")
-    return OpenAI(api_key=settings.OPENAI_API_KEY)
+
+def _client() -> None:
+    if not settings.GOOGLE_API_KEY:
+        raise RuntimeError("Missing GOOGLE_API_KEY in environment")
+    genai.configure(api_key=settings.GOOGLE_API_KEY)
 
 def _parse_json(s:str) -> Dict[str, Any]:
     try:
+        # Gemini may return the json in a code block, so we need to strip it
+        s = s.strip().replace("```json", "").replace("```", "").strip()
         return json.loads(s)
     except json.JSONDecodeError as e:
         # Log a short snippet for debugging (avoid logging entire output)
         snippet = s[:200].replace("\n", " ")
         log.warning("JSON parse failed: %s (snippet: %r)", e, snippet)
-        raise 
+        raise
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.6, min=0.6, max=3))
 def chat_json(messages: List[Dict[str, str]], *, response_format_json: bool=True) -> Dict[str, Any]:
     """
-    Call the model and return parsed JSON. Retries on transient failures or bad JSON.
-    messages: list like [{"role":"system", "content":"..."], {"role":"user", "content":"..."}]}]
+    Call the model and return parsed JSON.
+    messages: list like [{"role":"user", "parts": ["..."]}]
     """
-    client = _client()
+    _client()
+    model = genai.GenerativeModel(settings.LLM_MODEL)
 
-    #Prefer JSON mode when available on your model
-    kwargs = {
-        "model": settings.LLM_MODEL,
-        "messages": messages,
-        "temperature": 0.2,
-        "max_tokens": 700, #enough for our JSON
-    }
-    if response_format_json:
-        #Chat completions JSON mode
-        kwargs["response_format"] = {"type":"json_object"}
+    # The Gemini API has a different message format than OpenAI
+    # We need to convert the messages to the correct format.
+    # We are assuming the last message is the user prompt and the rest is history.
+    
+    history = []
+    for message in messages[:-1]:
+        if message['role'] == 'user':
+            history.append({'role': 'user', 'parts': [message['content']]})
+        elif message['role'] == 'assistant':
+            history.append({'role': 'model', 'parts': [message['content']]})
 
-    resp= client.chat.completions.create(**kwargs)
-    text = resp.choices[0].message.content or ""
+    prompt = messages[-1]['content']
+
+    chat = model.start_chat(history=history)
+    
+    resp = chat.send_message(prompt)
+    text = resp.text or ""
     return _parse_json(text)
-
-
