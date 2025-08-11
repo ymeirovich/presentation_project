@@ -1,0 +1,6 @@
+Company: Acme FinTech
+Context: Acme's data engineering team maintains 80+ ETL pipelines to move transaction logs from OLTP into a warehouse. Weekly incidents caused by schema drift consume 6–10 engineer-hours. CFO goal is to reduce infra spend by 25% this quarter.
+Current stack: Databricks + Airflow, Snowflake, Terraform.
+Constraints: SOC2 compliance required; security audit scheduled next month.
+Interest: Tools that reduce maintenance, add governance/audit trails, and lower spend without replatforming.
+Pilot note: Similar teams reported 30% infra savings and 60% faster schema change handling with managed ETL.

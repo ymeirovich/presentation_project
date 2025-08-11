@@ -12,5 +12,7 @@ class Settings:
     GOOGLE_PROJECT_ID: str | None = os.getenv("GOOGLE_PROJECT_ID")
     IMAGE_API_KEY: str | None = os.getenv("IMAGE_API_KEY")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY")
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
 
 settings = Settings()
