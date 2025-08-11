@@ -9,6 +9,7 @@ import json, pathlib
 from .validation import validate_sales_slide_payload, ValidationError
 from .validate_payload import validate_sales_slide_payload as cmd_validate_slide
 from .summarizer import summarize_report_to_sales_slide
+from .summarizer_chunked import summarize_report_chunked
 
 def configure_logging():
     #Simple, readable logs for dev; swap to JSON later if you want
@@ -104,6 +105,30 @@ def cmd_summarize_report(args: list[str]) -> int:
     print(f"📄 Saved: {outfile}")
     return 0
 
+def cmd_summarize_report_chunked(args:list[str])->int:
+    if not args:
+        print("Usage: python -m agent summarize-report-chunked <path/to_report.txt>")
+        return 2
+
+    path = pathlib.Path(args[0])
+    if not path.exists():
+        print(f"❌ No such file: {path}")
+        return 2
+
+    report_text = path.read_text(encoding="utf-8")
+
+    async def run():
+        slide = await summarize_report_chunked(report_text)
+        data = slide.model_dump()
+        outdir = pathlib.Path("out"); outdir.mkdir(parents=True, exist_ok=True)
+        outfile = outdir / "slide_payload_chunked.json"
+        outfile.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        print("✅ Chunked summarized slide payload:")
+        print(json.dumps(data, ensure_ascii=False, indent=2))
+        print(f"📄 Saved: {outfile}")
+        return 0
+
+    return asyncio.run(run())
 
 def main():
     configure_logging()
@@ -119,6 +144,8 @@ def main():
             sys.exit(cmd_validate_json(rest))
         if cmd=="summarize-report":
             sys.exit(cmd_summarize_report(rest))
+        if cmd == "summarize-report-chunked":
+            sys.exit(cmd_summarize_report_chunked(rest))
         if cmd=="validate-slide":
             if not rest:
                 print("Usage: python -m agent validate-slide <path/to.json>")

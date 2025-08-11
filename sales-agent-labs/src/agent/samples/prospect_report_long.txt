@@ -1,0 +1,160 @@
+﻿Yitzchak Meirovich
+  
+
+PARAGON TRAINING SPECIALIST
+
+
+Details
+Nofech 7/1, Na'ale, Israel
+052-756-3792
+ymeirovich​@gmail​.com
+
+
+Links
+LinkedIn
+
+
+Skills
+Program Leadership
+
+
+Sales Enablement
+
+
+Python
+
+
+JavaScript
+
+
+Hands-On Labs
+
+
+GenAI (For Content Generation And Course Workflow Automation)
+
+
+Curriculum Development
+
+
+Google Workspace AI Automation
+
+
+Practical Prompt Engineering
+
+
+Google Gemini
+
+
+
+
+Languages
+English - Native Speaker
+	 
+	 
+	
+
+
+
+	
+
+	Profile
+Dynamic Cloud Education Leader and AWS Authorized Instructor with over 25 years of experience, dedicated to translating complex AWS and AI concepts into accessible, engaging training content. Proficient in curriculum development and delivery, I harness AI to enhance learning experiences and drive certification success. My expertise in operational efficiency and program leadership enables the creation of impactful training programs that resonate with diverse audiences. With a proven track record in sales enablement and relationship management, I ensure sustained growth and industry presence. Recently, I led the integration of AI into office workflows, instructing over 140 employees on practical prompt engineering for Google Gemini and other AI tools, significantly boosting productivity. I am passionate about fostering talent and empowering teams to excel in cloud technologies, making training not just a job, but a passion. 
+
+
+Willing to travel extensively.
+
+
+Employment History
+Director of AWS Training at AllCloud
+MAY 2021 — JULY 2025
+Dynamic Cloud Education Leader and AWS Authorized Instructor with extensive experience in developing and delivering engaging AWS and AI training programs. 
+* Managed the Amazon Training Partner (ATP) program, generating over $1M in training sales within 18 months through direct sales involvement. 
+* Represented AllCloud at AWS conferences to enhance training visibility and industry engagement. 
+* Designed and facilitated an 8-week AWS DevOps bootcamp, helping over 40 new hires achieve AWS Solutions Architect Associate certification. 
+* Developed a custom course tracking system to optimize resource allocation and streamline operations. 
+* Oversaw all aspects of training program operations, including event logistics, course material preparation, and instructor management. 
+* Maintained relationships with AWS, providing regular performance reports as an ATP. 
+* Managed digital learning platform operations, including licensing and student distribution. 
+* Integrated AI into workflows, training over 140 employees on Google Gemini and related tools, enhancing productivity. 
+* Developed training content rapidly using GenAI, significantly shortening development timelines. 
+* Automated ATP processes through Google Workspace scripts to improve efficiency. 
+* Adapted training programs to meet diverse cultural needs across multiple regions (US, Canada, Germany, Austria, Romania, Israel). 
+* Collaborated with Product Managers and stakeholders to design professional development programs. 
+* Created and delivered sales enablement for technical and non-technical sales teams on AWS services and AllCloud offerings. 
+* Implemented training strategies using real customer scenarios to illustrate successful solutions. 
+* Facilitated certification readiness for technical teams, increasing their confidence in client interactions. 
+* Designed hands-on labs and study guides to elevate technical skills among engineers. 
+* Recently developed a lab for over 20 students focused on AWS services and AI tools such as GitHub's Copilot to “vibe code” Israeli army applications. 
+* Regularly updated learning materials to ensure practical skills development and course efficacy. 
+* Simplified complex technical concepts into actionable learning experiences for rapid skill acquisition. 
+* Curated online training content for developing employee professional development programs 
+* Using AI, quickly turned training content into Google Slides, Powerpoint, and Canva Presentations 
+* Developed compliance training on LRN (LMS) 
+
+
+Independent Consultant / Freelance Web Developer & Instructor at (Self-Employed)
+PRESENT
+Developer/Trainer with extensive experience in curriculum development and delivery, committed to making complex topics understandable and engaging for diverse learners. 
+* Created a unique web solution demonstrated at CES in Las Vegas (2014). 
+* Worked directly with Product and R&D teams at Intel. 
+* Delivered comprehensive technical training in JavaScript, PHP, and web development to a variety of professionals, including engineers, project managers, and sales teams. 
+* Developed and executed course curricula that cover a wide array of programming and web development subjects. 
+
+
+AWS Solutions Architect & Developer (API Focus) at SPL Software AG at the Israel Ministry of Finance
+JANUARY 2017 — JANUARY 2019
+Full-stack web developer building AWS serverless solution applications between the Israel Ministry of Finance and the Finance industry 
+* Received an Israel Webby award (2012) for pioneering the first responsive web design project for the Israel Finance Ministry, significantly reducing costs for citizens. Later, shared insights on responsive design with over 100 participants at the E4D Web Conference. 
+* Directed proof of concept for a public API project, facilitating access to Finance Ministry data for financial services. 
+* Created an Angular-based user registration and API key management system utilizing AWS services such as Amazon Cognito, Lambda, DynamoDB, SES, and API Gateway. 
+* Implemented user testing for the public API through an integrated Swagger interface 
+
+
+Senior JavaScript Developer at SPL Software AG at Israel Ministry of Finance
+JANUARY 2009 — JANUARY 2018
+As a Senior Developer and On-site Instructor, I focused on front-end architecture, enhancing design, and implementing responsive web development practices. 
+* Led the design and implementation of modern web applications, prioritizing user experience and accessibility. 
+* Facilitated the adoption of cutting-edge frameworks (ExtJS, jQuery, Knockout, Angular) through hands-on workshops and mentoring, resulting in improved team proficiency. 
+* Architected mobile-friendly web solutions for essential applications, ensuring seamless performance across devices. 
+
+
+Instructor at Lander Institute, Jerusalem
+JANUARY 2010 — JANUARY 2013
+Trainer with extensive experience in curriculum design and hands-on instruction. 
+* Taught courses on JavaScript and PHP, focusing on practical applications. 
+* Designed and implemented engaging course curricula tailored to diverse learners. 
+* Facilitated interactive classes with a strong emphasis on hands-on labs and real-world scenarios. 
+* Successfully developed multi-month courses within tight deadlines, ensuring timely delivery of quality training. 
+
+
+Front-end Developer at Smartek Technologies, Washington DC
+JANUARY 2005 — JANUARY 2008
+Web Developer with a focus on enhancing document management systems and automating electronic processes. 
+* Developed a single-page ticket ordering application using ExtJS, improving user accessibility. 
+* Served as a web developer at the US Department of the Treasury, enhancing the document management system and streamlining the electronic document conversion process through automation. 
+
+
+Web Developer at InfoPro Technologies
+JANUARY 2002 — JANUARY 2005
+Experienced in providing on-site development and support for the Department of the Treasury, focusing on the development and maintenance of document management applications to enhance operational efficiency. 
+* Provided on-site support at the Department of the Treasury, focusing on the development and maintenance of document management applications, ensuring efficient workflows and user engagement. 
+
+
+Web Developer at ICF Consulting
+JANUARY 2000 — JANUARY 2002
+Lotus Domino developer building management applications for the Department of Housing and Urban Development and the Environmental Protection Agency.
+* Developed and maintained document management applications tailored to the needs of the Department of the Treasury, improving workflow and accessibility. 
+* Collaborated with cross-functional teams to gather requirements and implement solutions that streamline processes and increase productivity. 
+
+
+Lotus Domino Web Developer at Logistics Application Inc
+JANUARY 1998 — JANUARY 2000
+Lotus Domino and LotusScript developer building applications for the US Department of Energy.
+* Designed user-friendly interfaces that simplified logistics management processes. 
+* Collaborated with cross-functional teams to identify requirements and streamline application features. 
+* Conducted training sessions for end-users, enhancing their understanding and utilization of the applications. 
+
+
+Education
+B.A. Political Science, University of Maryland, 
+JANUARY 1992 — JANUARY 1997
