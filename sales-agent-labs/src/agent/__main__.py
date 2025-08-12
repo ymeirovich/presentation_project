@@ -10,6 +10,8 @@ from .validation import validate_sales_slide_payload, ValidationError
 from .validate_payload import validate_sales_slide_payload as cmd_validate_slide
 from .summarizer import summarize_report_to_sales_slide
 from .summarizer_chunked import summarize_report_chunked
+from .imagegen_vertex import generate_image
+
 
 def configure_logging():
     #Simple, readable logs for dev; swap to JSON later if you want
@@ -130,6 +132,80 @@ def cmd_summarize_report_chunked(args:list[str])->int:
 
     return asyncio.run(run())
 
+def cmd_generate_image(args: list[str]) -> int:
+    if not args:
+        print('Usage: python -m agent generate-image "<prompt text>" [--aspect 16:9] [--seed 1234]')
+        return 2
+
+    prompt = args[0]
+    # quick flag parsing
+    aspect = None
+    seed = None
+    if "--aspect" in args:
+        i = args.index("--aspect")
+        if i + 1 < len(args):
+            aspect = args[i + 1]
+    if "--seed" in args:
+        i = args.index("--seed")
+        if i + 1 < len(args):
+            try:
+                seed = int(args[i + 1])
+            except ValueError:
+                print("Invalid --seed value, must be integer.")
+                return 2
+
+    out_dir = pathlib.Path("out/images")
+    try:
+        paths = generate_image(
+            project_id=settings.GOOGLE_PROJECT_ID or "presgen",
+            prompt=prompt,
+            out_dir=out_dir,
+            aspect_ratio=aspect or "16:9",
+            seed=seed,
+        )
+    except Exception as e:
+        print("❌ Image generation failed:", e)
+        return 1
+
+    print("✅ Generated image(s):")
+    for p in paths:
+        print(" -", p.resolve())
+    return 0
+
+def cmd_generate_image_from_payload(args: list[str]) -> int:
+    if not args:
+        print("Usage: python -m agent generate-image-from-payload <path/to/slide_payload.json>")
+        return 2
+
+    path = pathlib.Path(args[0])
+    if not path.exists():
+        print(f"❌ No such file: {path}")
+        return 2
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    image_prompt = data.get("image_prompt")
+    if not isinstance(image_prompt, str) or not image_prompt.strip():
+        print("❌ payload missing a non-empty 'image_prompt' string.")
+        return 1
+
+    out_dir = pathlib.Path("out/images")
+    try:
+        paths = generate_image(
+            project_id=settings.GOOGLE_PROJECT_ID or "presgen",
+            prompt=image_prompt,
+            out_dir=out_dir,
+            aspect_ratio="16:9",
+            seed=1234,  # fixed seed for reproducibility across runs
+        )
+    except Exception as e:
+        print("❌ Image generation failed:", e)
+        return 1
+
+    print("✅ Generated image(s) from payload:")
+    for p in paths:
+        print(" -", p.resolve())
+    return 0
+
 def main():
     configure_logging()
     log= logging.getLogger("agent")
@@ -146,6 +222,11 @@ def main():
             sys.exit(cmd_summarize_report(rest))
         if cmd == "summarize-report-chunked":
             sys.exit(cmd_summarize_report_chunked(rest))
+        if cmd == "generate-image":
+            sys.exit(cmd_generate_image(rest))
+        if cmd == "generate-image-from-payload":
+            sys.exit(cmd_generate_image_from_payload(rest))
+
         if cmd=="validate-slide":
             if not rest:
                 print("Usage: python -m agent validate-slide <path/to.json>")
