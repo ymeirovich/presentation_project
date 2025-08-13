@@ -11,7 +11,7 @@ from .summarizer_chunked import summarize_report_chunked
 from .imagegen_vertex import generate_image
 from .logging_config import setup_logging
 from .slides_google import (
-    create_presentation, add_title_and_subtitle, add_bullets_and_script, upload_image_to_drive, insert_image_from_url
+    create_presentation, create_main_slide_with_content, delete_default_slide, add_title_and_subtitle, add_bullets_and_script, upload_image_to_drive, insert_image_from_url
 )
 
 setup_logging() #ensure logs always appear
@@ -218,35 +218,38 @@ def cmd_create_slide(args: list[str]) -> int:
     payload_path = pathlib.Path(args[0])
     image_path   = pathlib.Path(args[1])
     if not payload_path.exists():
-        print(f"❌ No such file: {payload_path}")
-        return 2
+        print(f"❌ No such file: {payload_path}"); return 2
     if not image_path.exists():
-        print(f"❌ No such file: {image_path}")
-        return 2
+        print(f"❌ No such file: {image_path}"); return 2
 
     data = json.loads(payload_path.read_text(encoding="utf-8"))
-
-    title = data.get("title") or "Untitled"
+    title    = data.get("title") or "Untitled"
     subtitle = data.get("subtitle") or ""
-    bullets = data.get("bullets") or []
-    script  = data.get("script") or ""
+    bullets  = data.get("bullets") or []
+    script   = data.get("script") or ""
 
     try:
         pres = create_presentation(title)
         pres_id = pres["presentationId"]
-        add_title_and_subtitle(pres_id, title, subtitle)
-        body_slide_id = add_bullets_and_script(pres_id, bullets, script)
+        delete_default_slide(pres_id)
 
-        url = upload_image_to_drive(image_path)
-        insert_image_from_url(pres_id, url, page_object_id=body_slide_id)
+        image_url = upload_image_to_drive(image_path)  # returns a public link
+        slide_id = create_main_slide_with_content(
+            pres_id,
+            title=title,
+            subtitle=subtitle,
+            bullets=bullets,
+            image_url=image_url,
+            script=script,
+        )
 
+        deck_url = "https://docs.google.com/presentation/d/" + pres_id + "/edit"
         print("✅ Presentation ready:")
-        print("  Title:", pres.get("title"))
-        print("  URL:  https://docs.google.com/presentation/d/" + pres_id + "/edit")
+        print("  Slide:", slide_id)
+        print("  URL:  ", deck_url)
         return 0
 
     except Exception as e:
-        # Any error from Slides/Drive will have been logged with details.
         print("❌ Failed to create slide:", e)
         return 1
 
