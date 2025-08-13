@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 import pathlib
 from typing import Dict, Any, List, Optional
-
+import uuid
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -18,6 +18,10 @@ TOKEN_PATH = pathlib.Path("token_slides.json")
 # Put your OAuth client JSON for Slides/Drive here (Web or Installed type).
 # This is separate from Imagen's OAuth; using a dedicated file keeps things clean.
 OAUTH_CLIENT_JSON = pathlib.Path("oauth_slides_client.json")
+
+def _gen_id(prefix: str) -> str:
+    # Slides objectIds must be <= 50 chars, letters/numbers/_
+    return f"{prefix}_{uuid.uuid4().hex[:8]}"
 
 def _load_credentials() -> Credentials:
     if TOKEN_PATH.exists():
@@ -56,98 +60,224 @@ def create_presentation(title: str) -> Dict[str, Any]:
         _log_http_error("create_presentation",e)
         raise
 
-def add_title_and_subtitle(presentation_id: str, title: str, subtitle:str)->None:
-    creds = _load_credentials()
-    slides=_slides_service(creds)
-    requests = [
-        {
-            "createSlide":{
-                "slideLayoutReference": {"predefinedLayout": "TITLE"},
-                "objectId": "title_slide"
-            }
-        },
-        #Replace title/subtitle placeholders
-        {"insertText": {"objectId": "title_slide", "insertionIndex":0, "text":""}} #no-op safety
-    ]
-    # The TITLE layout contains placeholders. We find & fill them via replaceAllText
-    # To keep it simple in a small lab, we rely on replaceAllText with tokens we insert next.
-    requests.extend([
-        {"createShape":{
-            "objectId": "title_box",
-            "shapeType": "TEXT_BOX",
-            "elementProperties": {"pageObjectId": "title_slide", "size": {"width": {"magnitude": 4000000, "unit": "EMU"}, "height": {"magnitude": 700000, "unit": "EMU"}}, "transform": {"scaleX": 1, "scaleY": 1, "translateX": 500000, "translateY": 500000, "unit": "EMU"}}        
-            }},
-            {"insertText": {"objectId": "title_box", "insertionIndex": 0, "text": "{{TITLE}}"}},
-            {"createShape": {
-                "objectId": "subtitle_box",
-                "shapeType": "TEXT_BOX",
-                "elementProperties": {"pageObjectId": "title_slide", "size": {"width": {"magnitude": 4000000, "unit": "EMU"}, "height": {"magnitude": 700000, "unit": "EMU"}}, "transform": {"scaleX": 1, "scaleY": 1, "translateX": 500000, "translateY": 1500000, "unit": "EMU"}}
-            }},
-            {"insertText": {"objectId": "subtitle_box", "insertionIndex": 0, "text": "{{SUBTITLE}}"}},
-
-            {"replaceAllText": {"containsText": {"text": "{{TITLE}}", "matchCase": True}, "replaceText": title}},
-            {"replaceAllText": {"containsText": {"text": "{{SUBTITLE}}", "matchCase": True}, "replaceText": subtitle}}
-    ])
-    try:
-        slides.presentations().batchUpdate(
-            presentationId=presentation_id,
-            body={"requests":requests}
-        ).execute()
-        log.info("Added title & subtitle")
-    except HttpError as e:
-        _log_http_error("add_title_and_subtitle", e)
-        raise
-
-def add_bullets_and_script(presentation_id: str, bullets: List[str], script: str)->str:
+def add_title_and_subtitle(presentation_id: str, title: str, subtitle: str) -> str:
     """
-    Create a body slide with bullet list, and set speaker notes to the 'script' 
-    Returns the new slide's objectId
+    Create a BLANK slide, add two text boxes, and fill them with title/subtitle.
+    Returns the created slide's objectId.
     """
     creds = _load_credentials()
     slides = _slides_service(creds)
 
-    body_slide_id = "body_slide"
-    body_box_id = "body_bullets"
+    # Unique IDs so multiple runs don’t collide
+    slide_id   = _gen_id("title_slide")
+    title_box  = _gen_id("title_box")
+    sub_box    = _gen_id("subtitle_box")
 
-    # Build a single text box with newline-joined bullets; then turn them into bullets
-    bullet_text = "\n".join(bullets)
+    # EMU: English Metric Units. A 16:9 slide is ~10in x 5.625in → 914400 EMU per inch.
+    # We'll position/size boxes reasonably near the top.
+    requests = [
+        {
+            "createSlide": {
+                "objectId": slide_id,
+                "slideLayoutReference": {"predefinedLayout": "BLANK"}
+            }
+        },
+        {
+            "createShape": {
+                "objectId": title_box,
+                "shapeType": "TEXT_BOX",
+                "elementProperties": {
+                    "pageObjectId": slide_id,
+                    "size": {
+                        "width":  {"magnitude": 8000000, "unit": "EMU"},  # ~8.75in
+                        "height": {"magnitude":  900000, "unit": "EMU"}   # ~1in
+                    },
+                    "transform": {
+                        "scaleX": 1, "scaleY": 1,
+                        "translateX":  700000,   # ~0.77in from left
+                        "translateY":  600000,   # ~0.66in from top
+                        "unit": "EMU"
+                    }
+                }
+            }
+        },
+        {
+            "insertText": {
+                "objectId": title_box,
+                "insertionIndex": 0,
+                "text": title
+            }
+        },
+        # Optional: enlarge title font
+        {
+            "updateTextStyle": {
+                "objectId": title_box,
+                "style": {"fontSize": {"magnitude": 28, "unit": "PT"}, "bold": True},
+                "textRange": {"type": "ALL"},
+                "fields": "bold,fontSize"
+            }
+        },
+        {
+            "createShape": {
+                "objectId": sub_box,
+                "shapeType": "TEXT_BOX",
+                "elementProperties": {
+                    "pageObjectId": slide_id,
+                    "size": {
+                        "width":  {"magnitude": 8000000, "unit": "EMU"},
+                        "height": {"magnitude":  700000, "unit": "EMU"}
+                    },
+                    "transform": {
+                        "scaleX": 1, "scaleY": 1,
+                        "translateX":  700000,
+                        "translateY": 1700000,   # below the title
+                        "unit": "EMU"
+                    }
+                }
+            }
+        },
+        {
+            "insertText": {
+                "objectId": sub_box,
+                "insertionIndex": 0,
+                "text": subtitle
+            }
+        },
+        # Optional: subtitle styling
+        {
+            "updateTextStyle": {
+                "objectId": sub_box,
+                "style": {"fontSize": {"magnitude": 16, "unit": "PT"}},
+                "textRange": {"type": "ALL"},
+                "fields": "fontSize"
+            }
+        }
+    ]
+
+    try:
+        slides.presentations().batchUpdate(
+            presentationId=presentation_id,
+            body={"requests": requests}
+        ).execute()
+        log.info("Added title & subtitle on slide %s", slide_id)
+        return slide_id
+    except HttpError as e:
+        _log_http_error("add_title_and_subtitle", e)
+        raise
+
+def _get_notes_shape_id(slides, presentation_id: str, page_object_id: str) -> str | None:
+    """
+    Return the objectId of the TEXT_BOX on the notesPage for the given slide page.
+    Strategy:
+      1) Prefer notesPage.notesProperties.notesShape.objectId if present.
+      2) Else, scan notesPage.pageElements[] for a TEXT_BOX.
+    """
+    pres = slides.presentations().get(
+        presentationId=presentation_id  # <-- no fields filter: fetch full structure
+    ).execute()
+
+    for s in pres.get("slides", []):
+        if s.get("objectId") != page_object_id:
+            continue
+
+        notes_page = s.get("notesPage") or {}
+
+        # --- Path A: notesProperties.notesShape.objectId (often present) ---
+        notes_props = notes_page.get("notesProperties") or {}
+        notes_shape = notes_props.get("notesShape")
+        if isinstance(notes_shape, dict):
+            ns_id = notes_shape.get("objectId")
+            if ns_id:
+                log.debug("Found notesShape via notesProperties: %s", ns_id)
+                return ns_id
+
+        # --- Path B: scan pageElements for a TEXT_BOX ---
+        for el in notes_page.get("pageElements", []) or []:
+            shp = el.get("shape") or {}
+            if shp.get("shapeType") == "TEXT_BOX":
+                ns_id = el.get("objectId")
+                if ns_id:
+                    log.debug("Found notesShape via pageElements scan: %s", ns_id)
+                    return ns_id
+
+        log.debug("No notesShape found on slide %s", page_object_id)
+
+    return None
+
+
+def add_bullets_and_script(presentation_id: str, bullets: list[str], script: str) -> str:
+    """
+    Create a BLANK slide, add a text box with bullet points, then set speaker notes.
+    """
+    creds = _load_credentials()
+    slides = _slides_service(creds)
+
+    body_slide_id = _gen_id("body_slide")
+    body_box_id   = _gen_id("body_box")
+
+    bullets = [b for b in bullets if isinstance(b, str) and b.strip()]
+    bullet_text = "\n".join(bullets) if bullets else "(placeholder)"
 
     requests = [
-        {"createSlide":{
-            "slideLayoutReference": {"predefinedLayout": "TITLE_AND_BODY"},
-            "objectId": body_slide_id
+        {"createSlide": {
+            "objectId": body_slide_id,
+            "slideLayoutReference": {"predefinedLayout": "BLANK"},
         }},
         {"createShape": {
             "objectId": body_box_id,
             "shapeType": "TEXT_BOX",
-            "elementProperties": {"pageObjectId": body_slide_id,
-                                  "size": {"width": {"magnitude": 6000000, "unit": "EMU"},
-                                           "height": {"magnitude": 3000000, "unit": "EMU"}},
-                                  "transform": {"scaleX": 1, "scaleY": 1,
-                                                "translateX": 500000, "translateY": 1000000, "unit": "EMU"}}
+            "elementProperties": {
+                "pageObjectId": body_slide_id,
+                "size": {"width": {"magnitude": 6000000, "unit": "EMU"},
+                         "height": {"magnitude": 3000000, "unit": "EMU"}},
+                "transform": {"scaleX": 1, "scaleY": 1,
+                              "translateX": 500000, "translateY": 1000000, "unit": "EMU"},
+            }
         }},
-        {"insertText": {"objectId": body_box_id, "insertionIndex": 0, "text": bullet_text}},
+        {"insertText": {
+            "objectId": body_box_id,
+            "insertionIndex": 0,
+            "text": bullet_text,
+        }},
         {"createParagraphBullets": {
             "objectId": body_box_id,
             "textRange": {"type": "ALL"},
-            "bulletPreset": "BULLET_DISC"
-        }},
-        # Speaker notes: set the notes text for this page
-        {"updateNotesPageProperties": {
-            "objectId": body_slide_id,
-            "fields": "notesProperties"
+            "bulletPreset": "BULLET_DISC_CIRCLE_SQUARE",
         }},
     ]
+
+    # Create slide + bullets
     try:
         slides.presentations().batchUpdate(
             presentationId=presentation_id, body={"requests": requests}
         ).execute()
-        # Set speaker notes with a second request (simpler than spelunking placeholders)
-        _set_speaker_notes(slides, presentation_id, body_slide_id, script)
-        log.info("Added bullets and speaker notes")
-        return body_slide_id
+        log.info("Added bullets on slide %s", body_slide_id)
     except HttpError as e:
-        _log_http_error("add_bullets_and_script", e)
+        _log_http_error("add_bullets_and_script.create+bullets", e)
+        raise
+
+    # Speaker notes
+    try:
+        notes_shape_id = _get_notes_shape_id(slides, presentation_id, body_slide_id)
+        if not notes_shape_id:
+            log.warning("No notes TEXT_BOX found for slide %s; skipping speaker notes.", body_slide_id)
+            return body_slide_id
+
+        slides.presentations().batchUpdate(
+            presentationId=presentation_id,
+            body={"requests": [{
+                "insertText": {
+                    "objectId": notes_shape_id,
+                    "insertionIndex": 0,
+                    "text": script or "",
+                }
+            }]},
+        ).execute()
+        log.info("Added speaker notes for slide %s", body_slide_id)
+        return body_slide_id
+
+    except HttpError as e:
+        _log_http_error("add_bullets_and_script.notes", e)
         raise
 
 def _set_speaker_notes(slides, presentation_id: str, page_object_id: str, script: str) -> None:
