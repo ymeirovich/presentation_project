@@ -1,24 +1,28 @@
 import logging
 from .config import settings
-import sys
-import asyncio
 from .poke import get_pokemon, format_pokemon_human
 from .errors import AgentError
 from .apoke import aget_many
-import json, pathlib
+import json, pathlib, sys, asyncio
 from .validation import validate_sales_slide_payload, ValidationError
 from .validate_payload import validate_sales_slide_payload as cmd_validate_slide
 from .summarizer import summarize_report_to_sales_slide
 from .summarizer_chunked import summarize_report_chunked
 from .imagegen_vertex import generate_image
+from .logging_config import setup_logging
+from .slides_google import (
+    create_presentation, add_title_and_subtitle, add_bullets_and_script, upload_image_to_drive, insert_image_from_url
+)
+
+setup_logging() #ensure logs always appear
 
 
-def configure_logging():
-    #Simple, readable logs for dev; swap to JSON later if you want
-    logging.basicConfig(
-        level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
-        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-    )
+# def configure_logging():
+#     #Simple, readable logs for dev; swap to JSON later if you want
+#     logging.basicConfig(
+#         level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
+#         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+#     )
 
 def cmd_fetch_pokemon(args:list[str]) -> int:
     if not args:
@@ -206,8 +210,48 @@ def cmd_generate_image_from_payload(args: list[str]) -> int:
         print(" -", p.resolve())
     return 0
 
+def cmd_create_slide(args: list[str]) -> int:
+    if len(args) < 2:
+        print("Usage: python -m agent create-slide <path/to/slide_payload.json> <path/to/image.png>")
+        return 2
+
+    payload_path = pathlib.Path(args[0])
+    image_path   = pathlib.Path(args[1])
+    if not payload_path.exists():
+        print(f"❌ No such file: {payload_path}")
+        return 2
+    if not image_path.exists():
+        print(f"❌ No such file: {image_path}")
+        return 2
+
+    data = json.loads(payload_path.read_text(encoding="utf-8"))
+
+    title = data.get("title") or "Untitled"
+    subtitle = data.get("subtitle") or ""
+    bullets = data.get("bullets") or []
+    script  = data.get("script") or ""
+
+    try:
+        pres = create_presentation(title)
+        pres_id = pres["presentationId"]
+        add_title_and_subtitle(pres_id, title, subtitle)
+        body_slide_id = add_bullets_and_script(pres_id, bullets, script)
+
+        url = upload_image_to_drive(image_path)
+        insert_image_from_url(pres_id, url, page_object_id=body_slide_id)
+
+        print("✅ Presentation ready:")
+        print("  Title:", pres.get("title"))
+        print("  URL:  https://docs.google.com/presentation/d/" + pres_id + "/edit")
+        return 0
+
+    except Exception as e:
+        # Any error from Slides/Drive will have been logged with details.
+        print("❌ Failed to create slide:", e)
+        return 1
+
 def main():
-    configure_logging()
+    #configure_logging()
     log= logging.getLogger("agent")
 
     if len(sys.argv)>=2:
@@ -226,6 +270,8 @@ def main():
             sys.exit(cmd_generate_image(rest))
         if cmd == "generate-image-from-payload":
             sys.exit(cmd_generate_image_from_payload(rest))
+        if cmd == "create-slide":
+            sys.exit(cmd_create_slide(rest))
 
         if cmd=="validate-slide":
             if not rest:
