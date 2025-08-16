@@ -11,6 +11,8 @@ from src.agent.slides_google import upload_image_to_drive
 
 log = logging.getLogger("mcp.tools.imagen")
 
+from src.common.config import cfg
+
 _ASPECT_TO_SIZE = {
     "16:9": (1280, 720),
     "1:1":  (1024, 1024),
@@ -34,13 +36,16 @@ def _backoff_retry(fn, *, attempts=4, base=0.6):
 
 def image_generate_tool(params: dict) -> dict:
     p = GenerateImageParams.model_validate(params)
-
     project = os.getenv("GOOGLE_CLOUD_PROJECT")
     region = os.getenv("GOOGLE_CLOUD_REGION", "us-central1")
-    vertex_init(project=project, location=region)
+    if not project:
+        raise RuntimeError("GOOGLE_CLOUD_PROJECT is not set")
+    vertex_init(project=project, location=region)   # <-- inside the function
+    model = ImageGenerationModel.from_pretrained("imagegeneration@006") 
+    #width, height = _ASPECT_TO_SIZE[p.aspect]
+    sizes = cfg("defaults", "imagen_sizes")
+    width, height = sizes[p.aspect]
 
-    model = ImageGenerationModel.from_pretrained("imagegeneration@006")
-    width, height = _ASPECT_TO_SIZE[p.aspect]
 
     def _gen():
         return model.generate_images(

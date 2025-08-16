@@ -13,6 +13,6 @@ class Settings:
     IMAGE_API_KEY: str | None = os.getenv("IMAGE_API_KEY")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     GOOGLE_API_KEY: str | None = os.getenv("GOOGLE_API_KEY")
-    LLM_MODEL: str = os.getenv("LLM_MODEL", "models/gemini-1.5-flash-latest")
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "models/gemini-2.0-flash-001")
 
 settings = Settings()

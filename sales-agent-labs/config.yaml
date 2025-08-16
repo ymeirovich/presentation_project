@@ -1,0 +1,25 @@
+# config/config.yaml
+# Central project config. Non-secrets only!
+# For secrets use environment variables and reference them here.
+
+project:
+  id: ${GOOGLE_PROJECT_ID}        # required
+  region: ${GOOGLE_CLOUD_REGION}  # e.g. "us-central1"
+
+llm:
+  provider: gemini
+  model: gemini-2.0-flash-001
+  max_output_tokens: 1024
+  temperature: 0.2
+
+imagen:
+  provider: vertex
+  model: imagen-3.0
+  size: "1024x1024"
+
+slides:
+  default_title: "default_title Presentation"
+  share_image_public: true
+
+logging:
+  level: INFO

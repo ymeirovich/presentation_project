@@ -4,7 +4,7 @@ from typing import Any, Dict
 
 def _call(method: str, params: dict | None = None, timeout: float = 30.0) -> dict:
     proc = subprocess.Popen(
-        [sys.executable, "-m", "src.mcp_lab.server"],
+        [sys.executable, "-m", "src.mcp.server"],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, bufsize=1
     )
