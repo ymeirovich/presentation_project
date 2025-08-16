@@ -32,3 +32,7 @@ run-orchestrator:
 live-smoke:
 	@echo "Running live e2e smoke…"
 	@RUN_SMOKE=1 python -m pytest -q tests/test_orchestrator_live.py
+
+.PHONY: run-batch
+run-batch:
+	@python -m src.mcp_lab ./examples ./examples/more_reports

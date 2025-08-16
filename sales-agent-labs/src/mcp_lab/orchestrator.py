@@ -1,9 +1,9 @@
 from __future__ import annotations
-import logging, uuid
-from typing import Any, Dict, Optional
-
 from .rpc_client import MCPClient, ToolError
 from src.common.jsonlog import jlog
+
+import logging, uuid, time, hashlib, pathlib
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 log = logging.getLogger("orchestrator")
 
@@ -61,3 +61,52 @@ def orchestrate(report_text: str, *, client_request_id: Optional[str] = None) ->
              url=create.get("url"))
 
         return create
+
+
+def _stable_request_id(report_text: str) -> str:
+    """Deterministic idempotency key for the same content (ok for Day 13)."""
+    h = hashlib.sha256(report_text.encode("utf-8")).hexdigest()[:16]
+    return f"req-{h}"
+
+def orchestrate_many(
+    items: Iterable[Tuple[str, str]],  # (report_name, report_text)
+    *,
+    sleep_between_secs: float = 0.0,
+) -> List[Dict[str, Any]]:
+    """
+    Sequentially process a list of reports.
+    Returns a list of results: [{name, presentation_id, slide_id, url, request_id, ok, error}]
+    """
+    results: List[Dict[str, Any]] = []
+    for idx, (name, text) in enumerate(items, start=1):
+        req_id = _stable_request_id(text)
+        jlog(log, logging.INFO, event="batch_item_start", idx=idx, name=name, req_id=req_id)
+        try:
+            res = orchestrate(text, client_request_id=req_id)
+            results.append({
+                "name": name,
+                "request_id": req_id,
+                "presentation_id": res.get("presentation_id"),
+                "slide_id": res.get("slide_id"),
+                "url": res.get("url"),
+                "ok": True,
+                "error": None,
+            })
+            jlog(log, logging.INFO, event="batch_item_ok", idx=idx, name=name, req_id=req_id, url=res.get("url"))
+        except Exception as e:
+            results.append({
+                "name": name,
+                "request_id": req_id,
+                "presentation_id": None,
+                "slide_id": None,
+                "url": None,
+                "ok": False,
+                "error": str(e),
+            })
+            jlog(log, logging.ERROR, event="batch_item_fail", idx=idx, name=name, req_id=req_id, err=str(e))
+        if sleep_between_secs > 0 and idx < len(list(items)):
+            time.sleep(sleep_between_secs)
+    # Summary log
+    ok_count = sum(1 for r in results if r["ok"])
+    jlog(log, logging.INFO, event="batch_summary", total=len(results), ok=ok_count, fail=len(results)-ok_count)
+    return results
