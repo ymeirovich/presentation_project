@@ -1,0 +1,3 @@
+Acme FinTech is modernizing ETL to reduce infrastructure spend and speed insights.
+Priority: cost reduction, compliance risk, faster analytics.
+Current stack: fragmented pipelines; goal: consolidation and governance.

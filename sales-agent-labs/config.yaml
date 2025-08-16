@@ -14,12 +14,15 @@ llm:
 
 imagen:
   provider: vertex
-  model: imagen-3.0
-  size: "1024x1024"
+  model: imagegeneration@006
+  size: "1280x720"
+  share_image_public: true
 
 slides:
   default_title: "default_title Presentation"
   share_image_public: true
+  aspect: "16:9"
+
 
 logging:
   level: INFO

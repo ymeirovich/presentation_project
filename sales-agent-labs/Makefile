@@ -24,3 +24,11 @@ live-smoke:
 	@echo "Running live e2e smoke…"
 	RUN_SMOKE=1 $(PYTHON) -m pytest -q tests/test_smoke.py::test_live_end_to_end_orchestrator
 
+.PHONY: run-orchestrator live-smoke
+
+run-orchestrator:
+	@python -m src.mcp_lab ./examples/report_demo.txt
+
+live-smoke:
+	@echo "Running live e2e smoke…"
+	@RUN_SMOKE=1 python -m pytest -q tests/test_orchestrator_live.py
