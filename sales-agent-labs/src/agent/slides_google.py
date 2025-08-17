@@ -92,9 +92,9 @@ def set_speaker_notes_via_script(pres_id, slide_id, text):
             scriptId=os.getenv("APPS_SCRIPT_DEPLOYMENT_ID"),
             body=body
         ).execute()
-        print("Apps Script response:", resp)
+        log.debug("Apps Script response:", resp)
     except HttpError as e:
-        print("Error calling Apps Script:", e)
+        log.debug("Error calling Apps Script:", e)
 
 def create_presentation(title: str) -> Dict[str, Any]:
     creds = _load_credentials()
@@ -600,6 +600,13 @@ def create_main_slide_with_content(
     bullets = [b for b in (bullets or []) if isinstance(b, str) and b.strip()]
     bullet_text = "\n".join(bullets) if bullets else "(placeholder)"
 
+    # 🔧 Normalize image URL if present
+    if image_url:
+        log.debug("Original image URL:", image_url)
+        image_url = _drive_public_download_url(image_url)
+        log.debug("Using normalized image URL for Slides: %s", image_url)
+
+
     # Layout (16:9). Reasonable positions/sizes in EMU.
     # Top area: title and subtitle
     # Lower left: bullets
@@ -702,6 +709,7 @@ def create_main_slide_with_content(
     ]
 
     # 5) Optional image (right column)
+    log.debug("Image URL:", image_url)
     if image_url:
         requests.append({
             "createImage": {
@@ -710,7 +718,7 @@ def create_main_slide_with_content(
                     "pageObjectId": slide_id,
                     "size": {
                         "width":  {"magnitude": 5000000, "unit": EMU},
-                        "height": {"magnitude": 2812500, "unit": EMU},  # ~16:9 area
+                        "height": {"magnitude": 2812500, "unit": EMU},
                     },
                     "transform": {
                         "scaleX": 1, "scaleY": 1,
@@ -719,9 +727,9 @@ def create_main_slide_with_content(
                 },
             }
         })
-
     # Execute: create slide + content
     try:
+        log.debug("createImage? %s", bool(image_url))
         slides.presentations().batchUpdate(
             presentationId=presentation_id,
             body={"requests": requests},
@@ -761,33 +769,29 @@ def create_main_slide_with_content(
     return slide_id
 # ----------------------- Drive upload & image insert -----------------------
 
-def upload_image_to_drive(image_path: pathlib.Path) -> str:
+def upload_image_to_drive(image_path: str | pathlib.Path, make_public: bool = True) -> tuple[str, str]:
     """
-    Uploads the image to Drive and returns a publicly accessible URL
-    suitable for Slides 'createImage' from URL.
+    Uploads a PNG to Drive, optionally makes it public, and returns:
+      (file_id, public_download_url)
     """
+    image_path = pathlib.Path(image_path)
     creds = _load_credentials()
     drive = _drive_service(creds)
-    try:
-        file_meta = {"name": image_path.name, "mimeType": "image/png"}
-        media = None
-        # Lazy import to keep top clean
-        from googleapiclient.http import MediaFileUpload
-        media = MediaFileUpload(str(image_path), mimetype="image/png", resumable=False)
 
-        f = drive.files().create(body=file_meta, media_body=media, fields="id,webContentLink,webViewLink").execute()
-        file_id = f["id"]
+    from googleapiclient.http import MediaFileUpload
+    meta = {"name": image_path.name, "mimeType": "image/png"}
+    media = MediaFileUpload(str(image_path), mimetype="image/png", resumable=False)
 
-        # Make it link-readable
+    f = drive.files().create(body=meta, media_body=media, fields="id").execute()
+    file_id = f["id"]
+
+    if make_public:
         drive.permissions().create(fileId=file_id, body={"type": "anyone", "role": "reader"}, fields="id").execute()
 
-        # Use webContentLink as a direct content URL (Slides can fetch it)
-        public_url = drive.files().get(fileId=file_id, fields="webContentLink").execute()["webContentLink"]
-        log.info("Uploaded image to Drive: fileId=%s", file_id)
-        return public_url
-    except HttpError as e:
-        _log_http_error("upload_image_to_drive", e)
-        raise
+    log.debug("Uploaded image to Drive:", file_id)
+    public_url = _drive_public_download_url(file_id)
+    log.info("Uploaded image to Drive: fileId=%s (public=%s)", file_id, bool(make_public))
+    return file_id, public_url
 
 def insert_image_from_url(presentation_id: str, image_url: str, page_object_id: str = "body_slide") -> None:
     creds = _load_credentials()
@@ -820,3 +824,19 @@ def _log_http_error(where: str, e: HttpError) -> None:
         content = str(e)
     log.error("Google API error in %s | status=%s | content=%s", where, status, content)
 
+def _drive_public_download_url(file_id_or_url: str) -> str:
+    """
+    Accepts either a Drive fileId or any Drive URL and returns a stable
+    direct-download URL Slides can fetch: https://drive.google.com/uc?export=download&id=<fileId>
+    """
+    log.debug("inside drive public download url")
+    import re
+    s = str(file_id_or_url)
+    # If we already have a bare id
+    if re.fullmatch(r"[A-Za-z0-9_\-]{10,}", s):
+        fid = s
+    else:
+        # Try to extract fileId from common Drive URL shapes
+        m = re.search(r"/d/([A-Za-z0-9_\-]{10,})", s) or re.search(r"[?&]id=([A-Za-z0-9_\-]{10,})", s)
+        fid = m.group(1) if m else s  # fall back to raw
+    return f"https://drive.google.com/uc?export=download&id={fid}"
