@@ -1,0 +1,12 @@
+{
+  "title": "AI Agents: Beyond Chatbots to Automated Action",
+  "subtitle": "Build presentations, reports, and more",
+  "bullets": [
+    "Automate repetitive tasks",
+    "Generate presentations from text",
+    "Scale insights and outputs",
+    "Free up human creativity"
+  ],
+  "script": "AI Agents are the next step beyond chatbots. Instead of just answering questions, they can take action — pulling in data, creating documents, even building slide decks. An AI Agent is basically an AI model wrapped in tools, rules, and memory. Businesses spend huge amounts of time creating repetitive outputs: reports, presentations, summaries. An AI Agent automates that. Instead of hours of manual work, you drop in a text report and instantly get a polished presentation. Agents don’t just chat. They act. And that’s why they’re so valuable for the future of work.",
+  "image_prompt": "Professional, modern illustration of an AI agent orchestrating data flow into a presentation, with icons representing data sources and presentation software."
+}

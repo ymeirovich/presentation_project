@@ -14,15 +14,9 @@ from googleapiclient.errors import HttpError
 from ..schemas import SummarizeParams, SummarizeResult
 from src.common.config import cfg
 from src.common.jsonlog import jlog
+from src.agent.prompts import MULTI_SLIDE_SYSTEM_PROMPT
 
 log = logging.getLogger("mcp.tools.llm")
-
-SYSTEM_INSTRUCTIONS = (
-    "You are a sales enablement assistant. Read the prospect research and produce "
-    "a crisp one-slide summary with: title, subtitle, 3-8 bullets (concise), a "
-    "75-second presenter script (<= {max_script_chars} chars), and an image_prompt "
-    "suitable for a modern, professional illustration. Return JSON only."
-)
 
 def _coerce_to_object(data: Any) -> Dict[str, Any]:
     """
@@ -48,30 +42,16 @@ def _call_gemini_once(p: SummarizeParams) -> Dict[str, Any]:
 
     model_name = cfg("llm", "model", default="models/gemini-2.0-flash-001")
     temperature = cfg("llm", "temperature", default=0.2)
-    max_tokens = cfg("llm", "max_output_tokens", default=1024)
+    max_tokens = cfg("llm", "max_output_tokens", default=2048)
 
     model = GenerativeModel(model_name)
 
-    # Strong JSON-only, single-object prompt, with a tiny example.
-    prompt = (
-        "Return ONLY a SINGLE JSON object (not an array). No backticks or commentary.\n"
-        "Required fields and types:\n"
-        "  title: string\n"
-        "  subtitle: string\n"
-        "  bullets: array of 3-8 short strings\n"
-        f"  script: string (<= {p.max_script_chars} chars)\n"
-        "  image_prompt: string for a professional, modern illustration\n\n"
-        "Example (structure only; adapt content to the research):\n"
-        '{\n'
-        '  "title": "Acme FinTech — Modernize ETL to Cut Spend",\n'
-        '  "subtitle": "Faster insights, lower risk",\n'
-        '  "bullets": ["Cut infra costs 20–30%", "Unify pipelines", "Improve governance"],\n'
-        '  "script": "Short spoken paragraph...",\n'
-        '  "image_prompt": "Professional, minimal illustration of a data pipeline dashboard..." \n'
-        '}\n\n'
-        "Research:\n"
-        f"{p.report_text}\n"
+    system_prompt = MULTI_SLIDE_SYSTEM_PROMPT.format(
+        max_sections=p.max_sections, 
+        max_script_chars=p.max_script_chars
     )
+    
+    prompt = f"Research:\n{p.report_text}\n"
 
     gen_cfg = GenerationConfig(
         temperature=temperature,
@@ -79,7 +59,7 @@ def _call_gemini_once(p: SummarizeParams) -> Dict[str, Any]:
         response_mime_type="application/json",
     )
 
-    resp = model.generate_content(contents=[prompt], generation_config=gen_cfg)
+    resp = model.generate_content(contents=[system_prompt, prompt], generation_config=gen_cfg)
     text = (resp.text or "").strip()
 
     # Guard: strip accidental ```json fences
@@ -101,8 +81,10 @@ def _retry_json_validate(p: SummarizeParams, attempts: int = 3, base: float = 0.
         try:
             raw = _call_gemini_once(p)
             res = SummarizeResult.model_validate(raw)
-            if len(res.script) > p.max_script_chars:
-                res.script = res.script[: p.max_script_chars].rstrip()
+            # Optional: Trim script length if it exceeds the max
+            for section in res.sections:
+                if len(section.script) > p.max_script_chars:
+                    section.script = section.script[: p.max_script_chars].rstrip()
             jlog(log, logging.INFO, tool="llm.summarize", event="ok", attempt=i + 1)
             return res
         except (ValidationError, RuntimeError, HttpError) as e:

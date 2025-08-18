@@ -1,3 +1,26 @@
-Acme FinTech is modernizing ETL to reduce infrastructure spend and speed insights.
-Priority: cost reduction, compliance risk, faster analytics.
-Current stack: fragmented pipelines; goal: consolidation and governance.
+Scriptable Summary for YouTube Presentation
+
+Intro (hook):
+“AI Agents are the next step beyond chatbots. Instead of just answering questions, they can take action — pulling in data, creating documents, even building slide decks. In this project, I’ve been building one from scratch to show how it works.”
+
+What an AI Agent is:
+“An AI Agent is basically an AI model wrapped in tools, rules, and memory. Think of it as a smart teammate: it reads information, decides what to do, and then uses connected services — like Google Slides, Drive, or image generators — to get the job done.”
+
+Why they’re valuable:
+“Businesses spend huge amounts of time creating repetitive outputs: reports, presentations, summaries. An AI Agent automates that. Instead of hours of manual work, you drop in a text report and instantly get a polished presentation, complete with images, titles, and bullet points. It’s scalable, it’s consistent, and it frees up humans for the creative or strategic work.”
+
+What this project accomplishes:
+“In just a couple weeks, I’ve stitched together a full pipeline:
+
+Take a raw text report.
+
+Run it through an AI model for summarization.
+
+Optionally generate an image to illustrate the idea.
+
+Push it straight into Google Slides, creating a clean, shareable deck.
+
+We’ve added logging, retries, caching, and quota guardrails so it doesn’t just work once — it works reliably and at scale. That’s what separates a demo from a usable agent.”
+
+Closing (vision):
+“This is just one example: AI Agents as presentation builders. But the same framework could build sales decks, analyze customer feedback, even orchestrate workflows across tools like Slack or Gmail. The point is: Agents don’t just chat. They act. And that’s why they’re so valuable for the future of work.”

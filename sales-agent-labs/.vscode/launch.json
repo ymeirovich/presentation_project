@@ -1,0 +1,110 @@
+{
+  // Save this as .vscode/launch.json
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Orchestrator: single report",
+      "type": "python",
+      "request": "launch",
+      "module": "src.mcp_lab",
+      "args": ["examples/report_demo.txt"],
+      "cwd": "",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "envFile": "/.env",
+      "env": {
+        "GOOGLE_CLOUD_PROJECT": "presgen",
+        "GOOGLE_CLOUD_REGION": "us-central1"
+      }
+    },
+    {
+      "name": "Orchestrator: with 3 slides",
+      "type": "python",
+      "request": "launch",
+      "module": "src.mcp_lab",
+      "args": ["examples/report_demo.txt", "--slides", "3"],
+      "cwd": "",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "envFile": "/.env",
+      "env": {
+        "GOOGLE_CLOUD_PROJECT": "presgen",
+        "GOOGLE_CLOUD_REGION": "us-central1"
+      }
+    },
+    {
+      "name": "Orchestrator: no cache (debug fresh run)",
+      "type": "python",
+      "request": "launch",
+      "module": "src.mcp_lab",
+      "args": ["examples/report_demo.txt", "--no-cache"],
+      "cwd": "",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "envFile": "/.env",
+      "env": {
+        "GOOGLE_CLOUD_PROJECT": "presgen",
+        "GOOGLE_CLOUD_REGION": "us-central1"
+      }
+    },
+    {
+      "name": "MCP server (standalone)",
+      "type": "python",
+      "request": "launch",
+      "module": "src.mcp.server",
+      "cwd": "",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "envFile": "/.env",
+      "env": {
+        "GOOGLE_CLOUD_PROJECT": "presgen",
+        "GOOGLE_CLOUD_REGION": "us-central1"
+      }
+    },
+    {
+      "name": "Live smoke test (RUN_SMOKE=1)",
+      "type": "python",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["-q", "tests/test_orchestrator_live.py"],
+      "cwd": "",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "envFile": "/.env",
+      "env": {
+        "RUN_SMOKE": "1",
+        "GOOGLE_CLOUD_PROJECT": "presgen",
+        "GOOGLE_CLOUD_REGION": "us-central1"
+      }
+    },
+    {
+      "name": "Pytest (entire suite)",
+      "type": "python",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["-q"],
+      "cwd": "",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "envFile": "/.env",
+      "env": {
+        "GOOGLE_CLOUD_PROJECT": "presgen",
+        "GOOGLE_CLOUD_REGION": "us-central1"
+      }
+    },
+    {
+      "name": "Current file (ad hoc debugging)",
+      "type": "python",
+      "request": "launch",
+      "program": "",
+      "cwd": "",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "envFile": "/.env",
+      "env": {
+        "GOOGLE_CLOUD_PROJECT": "presgen",
+        "GOOGLE_CLOUD_REGION": "us-central1"
+      }
+    }
+  ]
+}

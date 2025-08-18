@@ -8,13 +8,17 @@ class SummarizeParams(BaseModel):
     report_text: constr(min_length=50, max_length=60_000)
     max_bullets: int = Field(default=5, ge=3, le=8)
     max_script_chars: int = Field(default=700, ge=200, le=900)
+    max_sections: int = Field(default=3, ge=1, le=10)
 
-class SummarizeResult(BaseModel):
+class Slide(BaseModel):
     title: constr(min_length=3, max_length=100)
     subtitle: constr(min_length=3, max_length=140)
     bullets: List[constr(min_length=3, max_length=160)] = Field(min_length=3, max_length=8)
     script: constr(min_length=20, max_length=900)
     image_prompt: constr(min_length=10, max_length=600)
+
+class SummarizeResult(BaseModel):
+    sections: List[Slide]
 
 # ---------- Image.generate (Vertex Imagen) -----------------------------------
 
@@ -33,6 +37,7 @@ class GenerateImageResult(BaseModel):
 
 class SlidesCreateParams(BaseModel):
     client_request_id: Optional[constr(strip_whitespace=True, min_length=6, max_length=64)] = None
+    presentation_id: Optional[str] = None 
     title: constr(min_length=3, max_length=100)
     subtitle: constr(min_length=0, max_length=140) = ""
     bullets: List[constr(min_length=3, max_length=160)] = Field(min_length=1, max_length=8)

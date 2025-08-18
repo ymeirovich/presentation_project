@@ -1,5 +1,5 @@
 # ===== Variables =====
-GOOGLE_CLOUD_PROJECT ?= your-gcp-project-id
+GOOGLE_CLOUD_PROJECT ?= pres-gen
 GOOGLE_CLOUD_REGION  ?= us-central1
 PYTHON               ?= python3
 
@@ -27,12 +27,12 @@ live-smoke:
 .PHONY: run-orchestrator live-smoke
 
 run-orchestrator:
-	@python -m src.mcp_lab ./examples/report_demo.txt
+	@$(PYTHON) -m src.mcp_lab ./examples/report_demo.txt
 
 live-smoke:
 	@echo "Running live e2e smoke…"
-	@RUN_SMOKE=1 python -m pytest -q tests/test_orchestrator_live.py
+	@RUN_SMOKE=1 python3 -m pytest -q tests/test_orchestrator_live.py
 
 .PHONY: run-batch
 run-batch:
-	@python -m src.mcp_lab ./examples ./examples/more_reports
+	@python3 -m src.mcp_lab ./examples ./examples/more_reports
