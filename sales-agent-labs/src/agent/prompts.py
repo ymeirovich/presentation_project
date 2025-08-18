@@ -6,14 +6,14 @@ You are a sales enablement assistant. Your job is to create a slide deck pitch
 from a prospect's Deep Research report.
 
 Rules:
-- Create a series of slides, each with a title, subtitle, bullets, script, and image_prompt.
+- Create a series of slides, each with a title, subtitle, bullets (at least 3), script, and image_prompt.
 - The number of slides should be based on the content of the report, up to a maximum of {max_sections}.
 - Return a JSON object with a "sections" key, which is an array of slide objects.
 - Each slide object should have the following shape:
   {{
     "title": "string (<=120 chars)",
     "subtitle": "string (<=160 chars)",
-    "bullets": ["string", "string", "string"],
+    "bullets": ["string", "string", "string"], // Must contain at least 3 concise bullets
     "script": "string (<=160 words, ~75 seconds)",
     "image_prompt": "string"
   }}

@@ -20,7 +20,7 @@ def orchestrate(
     client_request_id: Optional[str] = None,
     slide_count: int = 3,
     use_cache: bool = False,
-    cache_ttl_secs: Optional[float] = 36000.0,  # default 10h (your previous 1h comment said 3600; value here was 36000)
+    cache_ttl_secs: Optional[float] = 36000.0,
     llm_model: str = "models/gemini-2.0-flash-001",
     imagen_model: str = "imagegeneration@006",
     imagen_size: str = "1280x720",
@@ -31,39 +31,36 @@ def orchestrate(
       2) For each section up to slide_count (≤ N):
            image.generate (best effort, cached)
            slides.create (first creates deck; rest append via presentation_id)
-    Returns:
-      {
-        "presentation_id": str | None,
-        "url": str | None,
-        "created_slides": int,
-        "first_slide_id": str | None
-      }
     """
     req_id = client_request_id or str(uuid.uuid4())
 
     # ----------------------------
     # 1) LLM summarize (with cache)
     # ----------------------------
-    s: Dict[str, Any]
-    llm_cache_key = llm_key(report_text, 5, 700, llm_model)
+    # Cap the hint sensibly (don’t force N, just allow up to N)
+    max_sections_hint = max(1, min(10, slide_count))
+
+    # include the hint in the cache key so different requested sizes don’t collide
+    llm_cache_key = llm_key(report_text, 5, 700, llm_model) + f":msec={max_sections_hint}"
 
     def _call_llm() -> Dict[str, Any]:
         with MCPClient() as client:
-            s= client.call(
+            s = client.call(
                 "llm.summarize",
                 {
                     "report_text": report_text,
                     "max_bullets": 5,
                     "max_script_chars": 700,
-                    # Hint only; tool may ignore. We never fabricate slides.
-                    "max_sections": max(20, slide_count),
+                    # ✅ correct: “no more than N”, tool may return fewer
+                    "max_sections": max_sections_hint,
                 },
                 req_id=req_id,
             )
-             # 🔧 DEBUG: dump full JSON to console
+            # 🔧 print raw JSON to console for this run
             import json
             print(json.dumps(s, indent=2, ensure_ascii=False))
             return s
+
     if use_cache:
         cached = cache_get("llm_summarize", llm_cache_key, ttl_secs=cache_ttl_secs)
         if cached:
@@ -76,23 +73,23 @@ def orchestrate(
     else:
         s = _call_llm()
 
-    jlog(log, logging.INFO, event="after use_cache")
     # Normalize to sections[]
     sections = s.get("sections")
     if not isinstance(sections, list):
-        # Back-compat: old single-slide shape
-        sections = [
-            {
-                "title": s.get("title") or "Untitled",
-                "subtitle": s.get("subtitle"),
-                "bullets": s.get("bullets") or [],
-                "script": s.get("script") or "",
-                "image_prompt": s.get("image_prompt"),
-            }
-        ]
+        sections = [{
+            "title": s.get("title") or "Untitled",
+            "subtitle": s.get("subtitle"),
+            "bullets": s.get("bullets") or [],
+            "script": s.get("script") or "",
+            "image_prompt": s.get("image_prompt"),
+        }]
 
-    jlog(log, logging.INFO, event="sections_debug",
-     count=len(sections), titles=[(sec.get("title") or "")[:60] for sec in sections])
+    jlog(
+        log, logging.INFO, event="sections_debug",
+        count=len(sections), titles=[(sec.get("title") or "")[:60] for sec in sections]
+    )
+
+    # Never fabricate slides; use at most slide_count
     desired = max(1, min(10, slide_count))
     actual = min(desired, len(sections))
     if actual < desired:
@@ -107,7 +104,6 @@ def orchestrate(
         )
     if actual == 0:
         return {"presentation_id": None, "url": None, "created_slides": 0, "first_slide_id": None}
-    
 
     # ---------------------------------
     # 2) For each section (≤ N): build
@@ -133,8 +129,6 @@ def orchestrate(
                         "prompt": image_prompt,
                         "aspect": "16:9",
                         "size": imagen_size,
-                        # IMPORTANT: choose a schema-allowed tier at the call site
-                        # "default" maps to a provider-safe setting in the tool
                         "safety_tier": "default",
                         "share_public": True,
                     },
@@ -156,12 +150,7 @@ def orchestrate(
                         image_url = g.get("image_url") or g.get("url")
                         image_drive_file_id = g.get("drive_file_id")
                         image_local_path = g.get("local_path")
-                        # Build cache value in a simple, stable shape
-                        cache_set(
-                            "imagen",
-                            ikey,
-                            {"image_url": image_url, "drive_file_id": image_drive_file_id},
-                        )
+                        cache_set("imagen", ikey, {"image_url": image_url, "drive_file_id": image_drive_file_id})
                         jlog(log, logging.INFO, event="cache_miss_store", layer="image.generate", req_id=per_slide_id)
                 else:
                     g = _imagen_call()
@@ -171,11 +160,8 @@ def orchestrate(
 
                 if not (image_url or image_drive_file_id or image_local_path):
                     jlog(
-                        log,
-                        logging.WARNING,
-                        event="image_generate_no_usable_fields",
-                        req_id=per_slide_id,
-                        keys=list(g.keys()) if "g" in locals() else [],
+                        log, logging.WARNING, event="image_generate_no_usable_fields",
+                        req_id=per_slide_id, keys=list(g.keys()) if "g" in locals() else [],
                     )
             except ToolError as e:
                 jlog(log, logging.WARNING, event="image_generate_failed", req_id=per_slide_id, err=str(e))
@@ -190,8 +176,6 @@ def orchestrate(
             "share_image_public": True,
             "aspect": "16:9",
         }
-
-        # Choose exactly one image field, if any
         if image_url:
             slide_params["image_url"] = image_url
         elif image_drive_file_id:
@@ -199,38 +183,29 @@ def orchestrate(
         elif image_local_path:
             slide_params["image_local_path"] = image_local_path
 
-        # Append mode for slides 2..N
         if created_pres_id:
-            slide_params["presentation_id"] = created_pres_id
+            slide_params["presentation_id"] = created_pres_id  # append mode
+
+        import json
+        print(f"DEBUG: slide_params for slide {idx}: {json.dumps(slide_params, indent=2)}")
 
         with MCPClient() as client:
             create_res = client.call("slides.create", slide_params, req_id=per_slide_id)
 
-        # Capture deck info from the first slide
         if idx == 1:
             created_pres_id = create_res.get("presentation_id") or created_pres_id
             deck_url = create_res.get("url") or deck_url
             first_slide_id = create_res.get("slide_id") or first_slide_id
 
         jlog(
-            log,
-            logging.INFO,
-            event="slide_ok",
-            req_id=per_slide_id,
-            idx=idx,
-            presentation_id=created_pres_id,
-            slide_id=create_res.get("slide_id"),
+            log, logging.INFO, event="slide_ok",
+            req_id=per_slide_id, idx=idx,
+            presentation_id=created_pres_id, slide_id=create_res.get("slide_id"),
         )
 
-    # Final summary for this run
     jlog(
-        log,
-        logging.INFO,
-        event="orchestrate_ok",
-        req_id=req_id,
-        presentation_id=created_pres_id,
-        url=deck_url,
-        created_slides=actual,
+        log, logging.INFO, event="orchestrate_ok",
+        req_id=req_id, presentation_id=created_pres_id, url=deck_url, created_slides=actual,
     )
 
     return {
@@ -242,22 +217,16 @@ def orchestrate(
 
 
 def _stable_request_id(report_text: str) -> str:
-    """Deterministic idempotency key for the same content (ok for Day 13)."""
     h = hashlib.sha256(report_text.encode("utf-8")).hexdigest()[:16]
     return f"req-{h}"
 
 
 def orchestrate_many(
-    items: Iterable[Tuple[str, str]],  # (report_name, report_text)
+    items: Iterable[Tuple[str, str]],
     *,
     sleep_between_secs: float = 0.0,
     slide_count: int = 1,
 ) -> List[Dict[str, Any]]:
-    """
-    Sequentially process a list of reports.
-    Returns: [{name, presentation_id, url, request_id, ok, error, created_slides}]
-    """
-    # Materialize to list so we can both iterate and compute length safely
     item_list: List[Tuple[str, str]] = list(items)
 
     results: List[Dict[str, Any]] = []
@@ -266,30 +235,26 @@ def orchestrate_many(
         jlog(log, logging.INFO, event="batch_item_start", idx=idx, name=name, req_id=req_id)
         try:
             res = orchestrate(text, client_request_id=req_id, slide_count=slide_count)
-            results.append(
-                {
-                    "name": name,
-                    "request_id": req_id,
-                    "presentation_id": res.get("presentation_id"),
-                    "url": res.get("url"),
-                    "created_slides": res.get("created_slides"),
-                    "ok": True,
-                    "error": None,
-                }
-            )
+            results.append({
+                "name": name,
+                "request_id": req_id,
+                "presentation_id": res.get("presentation_id"),
+                "url": res.get("url"),
+                "created_slides": res.get("created_slides"),
+                "ok": True,
+                "error": None,
+            })
             jlog(log, logging.INFO, event="batch_item_ok", idx=idx, name=name, req_id=req_id, url=res.get("url"))
         except Exception as e:
-            results.append(
-                {
-                    "name": name,
-                    "request_id": req_id,
-                    "presentation_id": None,
-                    "url": None,
-                    "created_slides": 0,
-                    "ok": False,
-                    "error": str(e),
-                }
-            )
+            results.append({
+                "name": name,
+                "request_id": req_id,
+                "presentation_id": None,
+                "url": None,
+                "created_slides": 0,
+                "ok": False,
+                "error": str(e),
+            })
             jlog(log, logging.ERROR, event="batch_item_fail", idx=idx, name=name, req_id=req_id, err=str(e))
 
         if sleep_between_secs > 0 and idx < len(item_list):

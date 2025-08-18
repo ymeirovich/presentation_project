@@ -1,0 +1,35 @@
+PresGen Pitch Script
+
+Title: PresGen — Automating Enterprise Presentations with AI
+
+Subtitle: Cutting costs, saving time, enforcing compliance
+
+Problem:
+Enterprises spend tens to hundreds of thousands of dollars every month creating one-time presentations. Each deck takes 30–60 minutes per slide, costing $500–$1,000 per deck in labor. These assets are non-reusable, error-prone, and inconsistent. Current competitors like Beautiful.ai and Gamma still rely on manual effort. They require users to copy-paste data and learn new tools, leaving data freshness, compliance, and corporate consistency unsolved.
+
+Solution:
+PresGen is an AI Agent that integrates directly with enterprise data silos: Confluence, Jira, spreadsheets, databases, cloud platforms. Employees request a deck via Slack or workflow tool. In minutes, PresGen generates a fully styled, compliant, and up-to-date presentation. Corporate tone and messaging are enforced automatically. Leadership can push updates once, and every deck across the company reflects them instantly.
+
+Why Now:
+The rise of AI-first productivity tools shows massive demand, but most are design-first, not workflow-first. Enterprises face urgent pressure to cut costs, automate repetitive work, and ensure compliance. PresGen is at the intersection of AI, workflow automation, and enterprise knowledge management.
+
+Market Opportunity:
+The presentation software market exceeds $20 billion annually. Workflow automation is another $30 billion. PresGen is positioned at the intersection: automated, data-driven presentations for enterprise. Our wedge is sales and reporting decks, expanding into all knowledge outputs.
+
+Business Model:
+We will charge $50–$100 per user per month at enterprise scale. The ROI is immediate: replacing $500–$1,000 decks with <$100 automated workflows. Expansion revenue comes from broader integrations: reports, QBRs, executive memos.
+
+Competition:
+Competitors like Beautiful.ai, Gamma, and Tome focus on design. PresGen focuses on workflow. Our key differentiator: users don’t bring data to the tool — data brings the presentation to the user. That means automation, compliance, and zero learning curve.
+
+Technology and Moat:
+Our core IP combines LLM orchestration with workflow integrations, starting with Workato-like connectors. The moat grows with enterprise integrations, style and compliance encoding, and continuous learning as usage scales.
+
+Vision:
+We start with sales decks. We expand to all enterprise knowledge outputs. Endgame: PresGen becomes the knowledge agent that transforms internal data into polished, compliant deliverables in minutes, empowering employees and leadership alike.
+
+Ask:
+We are seeking pre-seed funding to grow the founding team, build enterprise integrations, and launch pilots with design partners. PresGen will save enterprises millions in wasted hours and establish itself as the enterprise standard for automated presentations.
+
+🔥 Closing Line:
+PresGen doesn’t just make slides faster — it makes every presentation smarter, compliant, and always up to date.
