@@ -252,8 +252,9 @@ python -m pytest tests/test_orchestrator_live.py
 python -m pytest tests/test_cache_unit.py
 ```
 ## Debugging with debugpy
+```bash
 DEBUGPY=1 DEBUGPY_WAIT=1 python3 -m src.mcp_lab ./examples/report_demo.txt --slides 3 --no-cache
-
+```
 ## 🐛 Troubleshooting
 
 ### Common Issues
