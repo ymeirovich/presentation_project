@@ -1,0 +1,45 @@
+{
+  "ts": 1755698194,
+  "raw": "token=JU9o2Kzh1uF7FAkrBxsJ9AwN&team_id=T09AY1PNX35&team_domain=presgen&channel_id=C09AY1Q50P5&channel_name=all-presgen&user_id=U09AY1PQWV9&user_name=ymeirovich&command=%2Fpresgen&text=create+a+10-slide+deck+showing+the+value+proposition+of+PresGen+for+CIOs&api_app_id=A09B26P17FX&is_enterprise_install=false&response_url=https%3A%2F%2Fhooks.slack.com%2Fcommands%2FT09AY1PNX35%2F9409130214992%2FXYy1wNvxsSfr0xBjdP0yVEnn&trigger_id=9409130221296.9372057779107.327f60b50f9faa8871bec5398c64b21e",
+  "payload": {
+    "token": [
+      "JU9o2Kzh1uF7FAkrBxsJ9AwN"
+    ],
+    "team_id": [
+      "T09AY1PNX35"
+    ],
+    "team_domain": [
+      "presgen"
+    ],
+    "channel_id": [
+      "C09AY1Q50P5"
+    ],
+    "channel_name": [
+      "all-presgen"
+    ],
+    "user_id": [
+      "U09AY1PQWV9"
+    ],
+    "user_name": [
+      "ymeirovich"
+    ],
+    "command": [
+      "/presgen"
+    ],
+    "text": [
+      "create a 10-slide deck showing the value proposition of PresGen for CIOs"
+    ],
+    "api_app_id": [
+      "A09B26P17FX"
+    ],
+    "is_enterprise_install": [
+      "false"
+    ],
+    "response_url": [
+      "https://hooks.slack.com/commands/T09AY1PNX35/9409130214992/XYy1wNvxsSfr0xBjdP0yVEnn"
+    ],
+    "trigger_id": [
+      "9409130221296.9372057779107.327f60b50f9faa8871bec5398c64b21e"
+    ]
+  }
+}

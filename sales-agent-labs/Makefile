@@ -1,5 +1,5 @@
 # ===== Variables =====
-GOOGLE_CLOUD_PROJECT ?= pres-gen
+GOOGLE_CLOUD_PROJECT ?= presgen
 GOOGLE_CLOUD_REGION  ?= us-central1
 PYTHON               ?= python3
 

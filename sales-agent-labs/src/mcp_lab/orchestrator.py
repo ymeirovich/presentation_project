@@ -130,7 +130,7 @@ def orchestrate(
                         "aspect": "16:9",
                         "size": imagen_size,
                         "safety_tier": "default",
-                        "share_public": True,
+                        "return_drive_link": True,
                     },
                     req_id=per_slide_id,
                 )
