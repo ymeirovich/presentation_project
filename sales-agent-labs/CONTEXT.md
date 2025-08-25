@@ -1,7 +1,7 @@
 # PresGen Project Context & Status
 
-**Last Updated**: January 2025  
-**Current Status**: PresGen-Data feature complete, ready for production deployment
+**Last Updated**: August 25, 2025  
+**Current Status**: PresGen-Data MVP - core functionality working, debugging chart generation issues (chart reuse and selection logic)
 
 ## Project Goal
 PresGen is an AI-powered SaaS platform that transforms unstructured reports and spreadsheet data into polished Google Slides presentations through intelligent summarization, data visualization, and automated slide generation.
@@ -91,14 +91,15 @@ PresGen is an AI-powered SaaS platform that transforms unstructured reports and 
 - **Core PresGen**: Text reports → narrative slides with AI-generated images
 - **PresGen-Data**: Excel upload → data questions → charts + insight slides  
 - **Slack Integration**: Full slash command support with ephemeral responses
-- **MCP Orchestration**: Robust tool chaining with timeout handling and retries
+- **MCP Orchestration**: Fixed subprocess communication, persistent server architecture
 - **Smart Query Processing**: Pattern matching + LLM fallback for data questions
-- **Drive Upload Pipeline**: Optimized image handling with resumable uploads
+- **Chart Integration**: Full data visualization pipeline with Drive upload and slide embedding
+- **API Compliance**: Proper handling of Google Slides API 2KB URL limits
+- **Timeout Management**: Reduced from 10min to 5min for faster feedback
 
 ### 🚧 In Progress  
 - **Production Deployment**: Moving from local uvicorn+ngrok to Cloud Run
 - **Storage Migration**: Local `out/` directory → Google Cloud Storage buckets
-- **Timeout Debugging**: Investigating 10-minute slides.create timeouts with enhanced GCP logging
 
 ### 📋 Planned (Next Phase)
 - **PresGen-Video**: Video transcription → timed slide overlays via FFmpeg
@@ -106,70 +107,83 @@ PresGen is an AI-powered SaaS platform that transforms unstructured reports and 
 
 ## Recent Debugging & Performance Improvements
 
-### **Critical Fixes Applied** (January 2025)
+### **Critical Fixes Applied** (August 2025)
 
-#### 1. **Timeout Issues Resolved**
-**Problem**: `slides.create` timing out after 300s, `data.query` timing out after 120s  
-**Root Causes**: 
-- Insufficient timeouts for complex Drive uploads (large images taking 5+ minutes)
-- LLM calls to Gemini taking 10-30+ seconds for SQL generation and insights
-- Broken pipe errors in MCP subprocess communication masquerading as timeouts
+#### 1. **MCP Subprocess Communication Fixed**
+**Problem**: MCP server was single-request design, exiting after each request instead of persisting  
+**Root Cause**: `slides.create` timing out because subprocess died after completing work but before sending response
+**Impact**: "MCP subprocess died during slides.create call" errors
 
 **Fixes Applied**:
-- ✅ **Aggressive timeout increases**: `slides.create` 300s→600s, `data.query` 120s→300s
-- ✅ **Enhanced MCP subprocess management**: Proper cleanup, signal handling, restart logic
-- ✅ **Progress monitoring**: 30-second interval logging during long operations
-- ✅ **Detailed performance profiling**: Phase-by-phase timing for data pipeline
+- ✅ **Persistent MCP server**: Converted to loop-based architecture handling multiple requests
+- ✅ **Clean stdout/stderr separation**: Logging redirected to stderr to prevent JSON corruption
+- ✅ **Timeout reduction**: `slides.create` 600s→300s, `data.query` 300s→180s for faster feedback
+- ✅ **Enhanced error detection**: Better subprocess monitoring and restart logic
 
-#### 2. **Google Slides API Error Fixed**
-**Problem**: `"object has no text"` errors when creating slides with empty subtitles  
-**Solution**: Made subtitle element creation conditional - only create if subtitle exists and is non-empty
+#### 2. **Chart Integration Completed**
+**Problem**: Charts generated but not inserted into slides with explanatory content
+**Root Cause**: MCP tool uploaded to Drive before base64 logic could be applied; base64 data URLs exceeded Google Slides API 2KB limit
+**Solution**: Proper Drive upload pipeline with optimized thresholds (1.5KB base64 limit, Drive for larger files)
+**Impact**: Complete data visualization pipeline - charts now properly embedded in slides with AI-generated bullet summaries
 
-#### 3. **Chart Generation Enhanced**  
-**Problem**: Single-value queries (e.g., "average quantity") failing to generate charts  
-**Solution**: Added `single_value_bar` chart type for aggregated results
-
-#### 4. **GCP Debug Logging Added**
-**Problem**: No visibility into GCP API delays during timeout periods  
-**Solution**: Comprehensive client-level logging with cost controls
+#### 3. **Logging Infrastructure Centralized** 
+**Problem**: Logs scattered, GCP Cloud Logging costs mounting
+**Solution**: All logs now saved to `src/logs/` directory with timestamped files
+**Benefits**: 
+- ✅ **Cost-free local debugging** (no GCP Cloud Logging charges)
+- ✅ **Organized log files** with automatic timestamping
+- ✅ **Terminal + file output** for real-time monitoring and analysis
 
 **Environment Variables** (`.env`):
 ```bash
-# Local debug logging (FREE)
-ENABLE_GCP_DEBUG_LOGGING=true
-
-# Cloud logging (COSTS MONEY - use sparingly!)  
-ENABLE_CLOUD_LOGGING=true
+ENABLE_GCP_DEBUG_LOGGING=true    # GCP client logs in terminal + file
+ENABLE_LOCAL_DEBUG_FILE=true     # Save debug logs to src/logs/
+# ENABLE_CLOUD_LOGGING=true      # DISABLED - no more GCP logging costs
 ```
 
-### **Current Status: January 24, 2025**
+### **Current Status: August 25, 2025**
 
 #### **Environment Setup**
 - **Running locally**: `uvicorn src.service.http:app --reload --port 8080`
-- **GCP Debug logging**: ENABLED (both local + cloud)
-- **Slack integration**: Active via ngrok tunnel
-- **Recent timeout**: 10-minute `slides.create` failure with `req_id: req-a77394ce3b7cfc1b#dq1`, `gcp_trace_id: 0e1ecc46`
+- **Logging**: Local files in `src/logs/` (cost-free, no GCP charges)
+- **Slack integration**: Active via ngrok tunnel  
+- **MCP Communication**: Fixed - persistent server architecture
+- **Chart Integration**: Complete data visualization pipeline working end-to-end
 
-#### **Files Modified** (Last Session)
-- `src/mcp_lab/rpc_client.py`: Enhanced timeout handling, progress logging
-- `src/mcp/tools/data.py`: Performance profiling, LLM timing, chart generation fixes
-- `src/agent/slides_google.py`: Conditional subtitle creation
-- `src/common/jsonlog.py`: GCP debug logging with cost controls
-- `.env`: Debug logging flags enabled
+#### **Files Modified** (Latest Session)
+- `src/mcp/server.py`: Converted to persistent loop-based server architecture
+- `src/mcp_lab/rpc_client.py`: Reduced timeouts (300s slides, 180s data), enhanced error detection
+- `src/mcp/tools/slides.py`: Fixed chart insertion pipeline with proper Drive upload handling
+- `src/agent/slides_google.py`: Base64 embedding for tiny images (1.5KB limit), Drive upload for charts
+- `src/common/jsonlog.py`: Centralized logging to src/logs/, stderr redirection for MCP mode
+- `.env`: Disabled GCP Cloud Logging, enabled local file logging
 
-#### **Outstanding Issues**
-- **10-minute slides.create timeouts**: Despite 600s limit, some requests still failing
-- **Need log correlation**: Use `gcp_trace_id` to correlate local timeouts with GCP server-side processing
-- **Drive upload bottleneck**: Likely root cause of extreme delays
+#### **Issues Resolved** ✅
+- ~~**MCP subprocess died errors**: Fixed with persistent server~~
+- ~~**10-minute timeouts**: Now fail at 5min for faster feedback~~ 
+- ~~**Google Slides API limits**: Proper handling of 2KB URL constraints~~
+- ~~**Script character limit**: Fixed 700-character validation errors~~
+- ~~**Log costs**: All logging now local and free~~
 
-#### **Next Steps for New Session**
-1. **Start server**: `uvicorn src.service.http:app --reload --port 8080 2>&1 | tee -a presgen-$(date +%Y%m%d).log`
-2. **Trigger timeout**: Create presentation to reproduce 10-minute failure
-3. **Analyze logs**: Search for `gcp_trace_id` in both local logs and GCP Cloud Console
-4. **Identify bottleneck**: Drive upload, Slides API, or Vertex AI delays
-5. **Optimize**: Based on findings, implement targeted performance improvements
-- **Multi-tenancy**: User isolation and workspace management
-- **Cost Monitoring**: API usage tracking and budget alerts
+#### **Current Issues** 🐛
+- **Chart reuse problem**: Same chart image being used for different data questions
+- **Revenue question chart**: "Which company generated most revenue" not generating charts
+- **Chart selection logic**: Need to debug chart type selection process
+
+#### **Production Readiness Status**
+The PresGen-Data MVP core functionality is working with minor chart issues to resolve:
+
+**✅ Working Systems:**
+- **Complete data pipeline**: Excel upload → SQL queries → slide creation
+- **Robust MCP orchestration** with persistent subprocess management  
+- **Chart insertion pipeline** with Drive upload and slide embedding
+- **AI-powered insights** with explanatory bullet points for each chart
+- **Cost-effective logging** and comprehensive debugging capabilities
+
+**🔧 Active Debugging:**
+- **Chart generation uniqueness**: Ensuring each question generates unique charts
+- **Chart selection reliability**: Improving logic for revenue/aggregation queries
+- **Data visualization variety**: Supporting different chart types per question
 
 ## File Structure Philosophy
 
@@ -272,18 +286,18 @@ cd /Users/yitzchak/Documents/learn/presentation_project/sales-agent-labs
 # Kill any existing processes
 lsof -ti:8080 | xargs -r kill -9
 
-# Start with logging
-uvicorn src.service.http:app --reload --port 8080 2>&1 | tee -a presgen-$(date +%Y%m%d).log
+# Start server (logs automatically saved to src/logs/)
+uvicorn src.service.http:app --reload --port 8080
 ```
 
 ### **Debug Timeout Issues**  
 ```bash
-# Search for specific request
-grep "req-ID-HERE" presgen-*.log
-grep "gcp_trace_id" presgen-*.log
+# Search for specific request in logs directory
+grep "req-ID-HERE" src/logs/*.log
+grep "gcp_trace_id" src/logs/*.log
 
 # Monitor GCP API calls
-grep -E "(google\.api_core|googleapiclient|drive\.googleapis)" presgen-*.log
+grep -E "(google\.api_core|googleapiclient|drive\.googleapis)" src/logs/*.log
 ```
 
 ### **Key Files for Debugging**

@@ -10,7 +10,6 @@ from googleapiclient.errors import HttpError
 from ..schemas import SlidesCreateParams, SlidesCreateResult
 from src.agent.slides_google import (
     create_presentation,
-    upload_image_to_drive,
     create_main_slide_with_content,
     delete_default_slide,
     _load_credentials,
@@ -226,10 +225,13 @@ def slides_create_tool(params: dict) -> dict:
             return u  # non-Drive URLs: return as-is
 
     if mode == "local":
+        # For local files, upload to Drive since base64 exceeds Slides API 2KB URL limit for chart files
         jlog(log, logging.INFO, tool="slides.create", event="drive_upload_begin", 
              path=str(val), req_id=p.client_request_id)
         start_time = time.time()
         try:
+            # Import here to avoid circular import after removing from top
+            from src.agent.slides_google import upload_image_to_drive
             file_id, public_url = _backoff(lambda: upload_image_to_drive(val, make_public=p.share_image_public))  # type: ignore[arg-type]
             upload_duration = time.time() - start_time
             jlog(log, logging.INFO, tool="slides.create", event="drive_upload_complete", 

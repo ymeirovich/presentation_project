@@ -700,11 +700,37 @@ def create_main_slide_with_content(
     # Determine if we should create subtitle elements
     has_subtitle = bool(subtitle and subtitle.strip())
 
-    # 🔧 Normalize image URL if present
+    # 🔧 Smart image handling: base64 for small files, Drive URLs for large
+    final_image_url = None
     if image_url:
-        log.debug("Original image URL:", image_url)
-        image_url = _drive_public_download_url(image_url)
-        log.debug("Using normalized image URL for Slides: %s", image_url)
+        log.debug("Original image URL: %s", image_url)
+        
+        # Check if it's a local file path (charts from data pipeline)
+        if image_url.startswith(('/Users', './out', 'out/')):
+            image_path = pathlib.Path(image_url)
+            if image_path.exists():
+                # Try base64 for small files (charts)
+                data_url = _create_base64_data_url(image_path)
+                if data_url:
+                    final_image_url = data_url
+                    log.info("Using base64 embed for chart: %s", image_path.name)
+                else:
+                    # File too large, upload to Drive
+                    log.info("File >100KB, uploading to Drive: %s", image_path.name)
+                    try:
+                        _, drive_url = upload_image_to_drive(image_path, make_public=True)
+                        final_image_url = drive_url
+                    except Exception as e:
+                        log.error("Drive upload failed: %s", e)
+                        final_image_url = None
+            else:
+                log.warning("Local image path does not exist: %s", image_url)
+        else:
+            # Already a URL, normalize for Drive compatibility
+            final_image_url = _drive_public_download_url(image_url)
+            
+        if final_image_url:
+            log.debug("Using final image URL for Slides: %s", final_image_url[:100] + "..." if len(final_image_url) > 100 else final_image_url)
 
     # Layout (16:9). Reasonable positions/sizes in EMU.
     # Top area: title and optional subtitle
@@ -828,12 +854,12 @@ def create_main_slide_with_content(
     requests.extend(bullets_requests)
 
     # 5) Optional image (right column)
-    log.debug("Image URL:", image_url)
-    if image_url:
+    log.debug("Final image URL for insertion:", final_image_url)
+    if final_image_url:
         requests.append(
             {
                 "createImage": {
-                    "url": image_url,
+                    "url": final_image_url,
                     "elementProperties": {
                         "pageObjectId": slide_id,
                         "size": {
@@ -853,14 +879,14 @@ def create_main_slide_with_content(
         )
     # Execute: create slide + content
     try:
-        log.debug("createImage? %s", bool(image_url))
+        log.debug("createImage? %s", bool(final_image_url))
         slides.presentations().batchUpdate(
             presentationId=presentation_id,
             body={"requests": requests},
         ).execute()
         log.info(
             "Built main slide with title/subtitle/bullets%s",
-            " + image" if image_url else "",
+            " + image" if final_image_url else "",
         )
     except HttpError as e:
         _log_http_error("create_main_slide_with_content.layout", e)
@@ -904,6 +930,28 @@ def create_main_slide_with_content(
 # ----------------------- Drive upload & image insert -----------------------
 
 
+def _create_base64_data_url(image_path: pathlib.Path) -> str | None:
+    """
+    Convert small PNG files to base64 data URLs for instant embedding.
+    Returns None if file too large (>100KB for charts).
+    """
+    file_size = image_path.stat().st_size
+    MAX_BASE64_SIZE = 1_500  # 1.5KB - Google Slides API has 2KB URL limit, base64 only for very small images
+    
+    if file_size > MAX_BASE64_SIZE:
+        return None
+        
+    try:
+        import base64
+        with open(image_path, "rb") as f:
+            encoded = base64.b64encode(f.read()).decode('utf-8')
+        log.info("Created base64 data URL: size=%d bytes (%.1fKB)", file_size, file_size/1024)
+        return f"data:image/png;base64,{encoded}"
+    except Exception as e:
+        log.warning("Failed to create base64 data URL: %s", e)
+        return None
+
+
 def upload_image_to_drive(
     image_path: str | pathlib.Path, make_public: bool = True
 ) -> tuple[str, str]:
@@ -920,9 +968,17 @@ def upload_image_to_drive(
 
     from googleapiclient.http import MediaFileUpload
 
-    # Log upload begin
-    log.info("Drive upload begin: path=%s size=%d bytes", 
-             image_path.name, image_path.stat().st_size)
+    file_size = image_path.stat().st_size
+    
+    # Enhanced logging with size thresholds
+    log.info("Drive upload begin: path=%s size=%d bytes (%.1fMB)", 
+             image_path.name, file_size, file_size / (1024*1024))
+    
+    if file_size > 5_000_000:  # 5MB
+        log.warning("Large file upload detected - this may take several minutes")
+        
+    if file_size > 10_000_000:  # 10MB  
+        log.error("File exceeds 10MB - consider compression or alternative approach")
 
     meta = {"name": image_path.name, "mimeType": "image/png"}
     # Use resumable upload for better reliability with larger files

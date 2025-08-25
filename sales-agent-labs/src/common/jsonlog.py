@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, logging, time, uuid, os
+import json, logging, time, uuid, os, sys
 from typing import Any
 
 # GCP debug logging setup - controlled by environment variable
@@ -13,9 +13,10 @@ def _setup_gcp_debug_logging():
     
     enable_gcp_debug = os.getenv("ENABLE_GCP_DEBUG_LOGGING", "false").lower() == "true"
     enable_cloud_logging = os.getenv("ENABLE_CLOUD_LOGGING", "false").lower() == "true"
+    enable_local_debug_file = os.getenv("ENABLE_LOCAL_DEBUG_FILE", "false").lower() == "true"
     
     if enable_gcp_debug:
-        # Enable detailed GCP client logging
+        # Enable detailed GCP client logging to terminal
         logging.getLogger('google.api_core').setLevel(logging.DEBUG)
         logging.getLogger('google.auth').setLevel(logging.DEBUG)
         logging.getLogger('google.cloud').setLevel(logging.DEBUG)
@@ -23,7 +24,53 @@ def _setup_gcp_debug_logging():
         logging.getLogger('google_auth_httplib2').setLevel(logging.DEBUG)
         logging.getLogger('urllib3').setLevel(logging.DEBUG)
         
-        print(f"🔍 GCP Debug Logging: ENABLED (local only)")
+        # Only print to stdout if not in MCP server mode (which needs clean stdout for JSON-RPC)
+        if os.getenv("MCP_SERVER_MODE") != "true":
+            print(f"🔍 GCP Debug Logging: ENABLED (terminal output)")
+        else:
+            # Log to stderr in MCP server mode to avoid corrupting stdout
+            print(f"🔍 GCP Debug Logging: ENABLED (terminal output)", file=sys.stderr)
+    
+    # Setup local debug file logging
+    if enable_local_debug_file:
+        try:
+            from datetime import datetime
+            import pathlib
+            
+            # Ensure logs directory exists
+            logs_dir = pathlib.Path("src/logs")
+            logs_dir.mkdir(exist_ok=True)
+            
+            debug_file = logs_dir / f"debug-gcp-{datetime.now().strftime('%Y%m%d-%H%M%S')}.log"
+            
+            file_handler = logging.FileHandler(debug_file)
+            file_handler.setLevel(logging.DEBUG)
+            
+            # Detailed format for file logging
+            formatter = logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            )
+            file_handler.setFormatter(formatter)
+            
+            # Add file handler to relevant loggers
+            loggers_to_file = [
+                'google.api_core', 'google.auth', 'google.cloud', 
+                'googleapiclient', 'google_auth_httplib2', 'urllib3',
+                'agent.slides', 'mcp_lab.rpc_client', 'mcp.tools'
+            ]
+            
+            for logger_name in loggers_to_file:
+                logger = logging.getLogger(logger_name)
+                logger.addHandler(file_handler)
+                
+            if os.getenv("MCP_SERVER_MODE") != "true":
+                print(f"📝 Local Debug File: ENABLED → {debug_file}")
+            else:
+                print(f"📝 Local Debug File: ENABLED → {debug_file}", file=sys.stderr)
+            
+        except Exception as e:
+            print(f"⚠️  Local debug file setup failed: {e}")
     
     if enable_cloud_logging:
         try:
@@ -43,7 +90,10 @@ def _setup_gcp_debug_logging():
         except Exception as e:
             print(f"⚠️  GCP Cloud Logging setup failed: {e}")
     else:
-        print(f"💰 GCP Cloud Logging: DISABLED (cost optimization)")
+        if os.getenv("MCP_SERVER_MODE") != "true":
+            print(f"💰 GCP Cloud Logging: DISABLED (cost optimization)")
+        else:
+            print(f"💰 GCP Cloud Logging: DISABLED (cost optimization)", file=sys.stderr)
     
     _GCP_DEBUG_SETUP = True
 
@@ -59,6 +109,9 @@ def jlog(logger: logging.Logger, level: int, **kv: Any) -> None:
     
     # Add GCP correlation ID for debugging
     if os.getenv("ENABLE_GCP_DEBUG_LOGGING") == "true":
-        kv.setdefault("gcp_trace_id", str(uuid.uuid4())[:8])
+        # Use proper GCP trace format for correlation
+        import socket
+        trace_id = f"projects/{os.getenv('GOOGLE_CLOUD_PROJECT', 'unknown')}/traces/{uuid.uuid4().hex}"
+        kv.setdefault("gcp_trace_id", trace_id)
     
     logger.log(level, json.dumps(kv, ensure_ascii=False))

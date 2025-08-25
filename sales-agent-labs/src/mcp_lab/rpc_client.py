@@ -7,8 +7,8 @@ DEFAULT_TIMEOUT_SECS = 180
 METHOD_TIMEOUTS = {
     "llm.summarize": 120,
     "image.generate": 180,
-    "slides.create": 600,  # Slides + Drive can be very slow, especially with image uploads
-    "data.query": 300,  # Data processing can be complex with large datasets
+    "slides.create": 300,  # Reduced from 600s (10min) to 300s (5min)
+    "data.query": 180,  # Reduced from 300s (5min) to 180s (3min)
 }
 
 
@@ -150,8 +150,14 @@ class MCPClient:
 
     def _reader(self):
         assert self._p and self._p.stdout
-        for line in self._p.stdout:
-            self._rx.put(line.rstrip("\n"))
+        try:
+            for line in self._p.stdout:
+                line = line.rstrip("\n")
+                if line:  # Ignore empty lines
+                    self._rx.put(line)
+        except (ValueError, OSError) as e:
+            # stdout was closed or subprocess died
+            log.warning("Reader thread stopped: %s", e)
 
     def _ensure_alive(self):
         if self._p is None or self._p.poll() is not None:
@@ -184,8 +190,9 @@ class MCPClient:
             print(
                 json.dumps(payload, ensure_ascii=False), file=self._p.stdin, flush=True
             )
-        except (BrokenPipeError, ValueError):  # ValueError: I/O on closed file
+        except (BrokenPipeError, ValueError) as e:  # ValueError: I/O on closed file
             # server likely crashed; restart then retry ONCE
+            log.warning("MCP subprocess communication failed (%s), restarting...", e)
             self._ensure_alive()
             print(
                 json.dumps(payload, ensure_ascii=False), file=self._p.stdin, flush=True
@@ -199,6 +206,12 @@ class MCPClient:
             try:
                 resp_line = self._rx.get(timeout=0.5)
             except queue.Empty:
+                # Check if subprocess is still alive
+                if self._p and self._p.poll() is not None:
+                    log.error("MCP subprocess died during %s call (exit code: %s)", 
+                             method, self._p.returncode)
+                    raise RuntimeError(f"MCP subprocess died during {method} call")
+                
                 # Log progress every 30 seconds for long operations
                 current_time = time.time()
                 if current_time - last_progress_log >= 30:
@@ -208,12 +221,18 @@ class MCPClient:
                             method, elapsed, remaining)
                     last_progress_log = current_time
                 continue
+            
             try:
                 resp = json.loads(resp_line)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                log.warning("Invalid JSON from MCP server: %s (line: %s)", e, resp_line[:100])
                 continue
+                
             if resp.get("id") != rid:
+                log.debug("Ignoring response for different request ID: %s (expected: %s)", 
+                         resp.get("id"), rid)
                 continue
+                
             if "error" in resp:
                 raise ToolError(resp["error"])
             return resp.get("result", {})

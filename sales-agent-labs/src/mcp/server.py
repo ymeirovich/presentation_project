@@ -64,26 +64,49 @@ def _handle_request(req: Dict[str, Any]) -> Dict[str, Any]:
 
 def serve_stdio() -> int:
     """
-    Minimal single-request stdio server:
-    - Reads one JSON line from stdin
-    - Dispatches to a tool
-    - Writes one JSON line to stdout
+    Persistent stdio server:
+    - Reads JSON lines from stdin in a loop
+    - Dispatches each to a tool
+    - Writes JSON responses to stdout
+    - Continues until stdin is closed or EOF
     """
-    line = sys.stdin.readline()
-    if not line:
-        sys.stdout.write(json.dumps(_error(None, -32700, "Empty request")) + "\n")
-        sys.stdout.flush()
-        return 1
+    import os
+    # Set flag to redirect logging setup output to stderr
+    os.environ["MCP_SERVER_MODE"] = "true"
+    
+    log.info("MCP server starting, listening on stdin...")
+    
     try:
-        req = json.loads(line)
-    except json.JSONDecodeError:
-        sys.stdout.write(json.dumps(_error(None, -32700, "Invalid JSON")) + "\n")
-        sys.stdout.flush()
-        return 1
+        while True:
+            line = sys.stdin.readline()
+            if not line:  # EOF - client disconnected
+                log.info("MCP server received EOF, shutting down")
+                break
+                
+            line = line.strip()
+            if not line:  # Empty line, skip
+                continue
+                
+            try:
+                req = json.loads(line)
+            except json.JSONDecodeError as e:
+                log.warning("Invalid JSON received: %s", e)
+                sys.stdout.write(json.dumps(_error(None, -32700, "Invalid JSON")) + "\n")
+                sys.stdout.flush()
+                continue
 
-    resp = _handle_request(req)
-    sys.stdout.write(json.dumps(resp) + "\n")
-    sys.stdout.flush()
+            resp = _handle_request(req)
+            sys.stdout.write(json.dumps(resp) + "\n")
+            sys.stdout.flush()
+            log.debug("Sent response for method: %s", req.get("method"))
+            
+    except KeyboardInterrupt:
+        log.info("MCP server interrupted")
+    except Exception as e:
+        log.error("MCP server error: %s", e)
+        return 1
+        
+    log.info("MCP server shutting down")
     return 0
 
 

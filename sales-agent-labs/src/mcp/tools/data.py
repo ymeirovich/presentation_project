@@ -206,7 +206,7 @@ def _to_table_md(df: pd.DataFrame, max_rows: int = 12, max_cols: int = 6) -> str
 
 
 def _choose_chart(df: pd.DataFrame) -> str:
-    # Enhanced chart selection logic
+    # Enhanced chart selection logic with better coverage
     cols = df.columns.tolist()
     rows = len(df)
     
@@ -222,13 +222,28 @@ def _choose_chart(df: pd.DataFrame) -> str:
     if len(cols) >= 2 and rows > 1:
         x = cols[0]
         y = cols[1]
-        if pd.api.types.is_numeric_dtype(df[y]):
-            # line if datetime-like, else bar
-            if pd.api.types.is_datetime64_any_dtype(df[x]) or "date" in str(
-                df[x].dtype
-            ):
+        
+        # Check if we have a numeric column for Y-axis
+        numeric_cols = [c for c in cols if pd.api.types.is_numeric_dtype(df[c])]
+        if len(numeric_cols) >= 1:
+            # Use first numeric column as Y if current Y isn't numeric
+            if not pd.api.types.is_numeric_dtype(df[y]) and numeric_cols:
+                y = numeric_cols[0]
+                
+            # line if datetime-like X, else bar
+            if pd.api.types.is_datetime64_any_dtype(df[x]) or "date" in str(df[x].dtype):
                 return "line"
             return "bar"
+    
+    # Two columns with few rows (<=10) - still worth charting
+    if len(cols) == 2 and rows <= 10 and rows > 0:
+        numeric_cols = [c for c in cols if pd.api.types.is_numeric_dtype(df[c])]
+        if len(numeric_cols) >= 1:
+            return "bar"
+    
+    # Single column with reasonable number of rows
+    if len(cols) == 1 and 1 < rows <= 20:
+        return "single_col_bar"
     
     # Fallback to table for complex data
     return "table"
@@ -260,7 +275,8 @@ def _render_chart(df: pd.DataFrame, path: pathlib.Path) -> Optional[pathlib.Path
         elif kind == "line":
             # Time series or date-based data
             x = df.columns[0]
-            y = df.columns[1]
+            numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+            y = numeric_cols[0] if numeric_cols else df.columns[1]
             plt.plot(df[x], df[y])
             plt.xlabel(x.replace('_', ' ').title())
             plt.ylabel(y.replace('_', ' ').title())
@@ -268,7 +284,13 @@ def _render_chart(df: pd.DataFrame, path: pathlib.Path) -> Optional[pathlib.Path
         else:  # "bar" - default case
             # Two columns: category and value
             x = df.columns[0]
-            y = df.columns[1] if len(df.columns) > 1 else df.columns[0]
+            # Find the numeric column for Y-axis
+            numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+            if numeric_cols:
+                y = numeric_cols[0]  # Use first numeric column
+            else:
+                y = df.columns[1] if len(df.columns) > 1 else df.columns[0]
+            
             plt.bar(df[x].astype(str), df[y])
             plt.xlabel(x.replace('_', ' ').title())
             plt.ylabel(y.replace('_', ' ').title())

@@ -14,6 +14,27 @@ from src.common.jsonlog import jlog
 log = logging.getLogger("orchestrator")
 
 
+def _truncate_script(script: str, max_len: int) -> str:
+    """
+    Intelligently truncate script content to fit slide character limits.
+    Tries to break at word boundaries and add ellipsis if truncated.
+    """
+    if len(script) <= max_len:
+        return script
+    
+    # Find the last space before the limit
+    truncated = script[:max_len - 3]  # Leave room for "..."
+    last_space = truncated.rfind(' ')
+    last_newline = truncated.rfind('\n')
+    
+    # Break at the latest word/line boundary
+    break_point = max(last_space, last_newline)
+    if break_point > max_len // 2:  # Only if we don't lose too much content
+        return script[:break_point] + "..."
+    else:
+        return script[:max_len - 3] + "..."
+
+
 def orchestrate(
     report_text: str,
     *,
@@ -548,7 +569,7 @@ def orchestrate_mixed(
                     "presentation_id": pres_id,  # None on first slide → tool will create deck
                     "title": q,
                     "bullets": dq.get("insights") or [],
-                    "script": (dq.get("table_md") or "")[:2500],
+                    "script": _truncate_script(dq.get("table_md") or "", 690),
                     "aspect": "16:9",
                     "share_image_public": True,
                 }
