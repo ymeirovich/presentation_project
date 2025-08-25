@@ -5,11 +5,13 @@ from typing import IO, Optional
 
 log = logging.getLogger("mcp.protocol")
 
+
 class FramedIO:
     """
     Very simple NDJSON framing: one JSON per line.
     In a production MCP server you’d implement Content-Length framing.
     """
+
     def __init__(self, reader: IO[str], writer: IO[str]):
         self._r = reader
         self._w = writer

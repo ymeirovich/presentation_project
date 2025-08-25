@@ -24,9 +24,10 @@ log = logging.getLogger("mcp.tools.imagen")
 
 _FALLBACK_ASPECT_TO_SIZE: Dict[str, Tuple[int, int]] = {
     "16:9": (1280, 720),
-    "4:3":  (1024, 768),
-    "1:1":  (1024, 1024),
+    "4:3": (1024, 768),
+    "1:1": (1024, 1024),
 }
+
 
 def _parse_size(s: Optional[str]) -> Optional[Tuple[int, int]]:
     """Accept '1280x720' or '1280×720'. Returns (w, h) or None."""
@@ -36,6 +37,7 @@ def _parse_size(s: Optional[str]) -> Optional[Tuple[int, int]]:
     if not m:
         return None
     return int(m.group(1)), int(m.group(2))
+
 
 def _get_sizes_map() -> Dict[str, Tuple[int, int]]:
     """
@@ -58,7 +60,9 @@ def _get_sizes_map() -> Dict[str, Tuple[int, int]]:
         pass
     return _FALLBACK_ASPECT_TO_SIZE
 
+
 # ------------ Retry helpers ---------------------------------------------------
+
 
 def _retryable_http(e: Exception) -> bool:
     # Vertex / HTTP retryables
@@ -66,9 +70,12 @@ def _retryable_http(e: Exception) -> bool:
     if status in (429, 500, 502, 503, 504):
         return True
     # gRPC/Vertex typed exceptions that should NOT be retried
-    if isinstance(e, (gexc.FailedPrecondition, gexc.PermissionDenied, gexc.InvalidArgument)):
+    if isinstance(
+        e, (gexc.FailedPrecondition, gexc.PermissionDenied, gexc.InvalidArgument)
+    ):
         return False
     return False
+
 
 def _backoff_retry(fn, *, attempts: int = 4, base: float = 0.6):
     for i in range(attempts):
@@ -77,11 +84,15 @@ def _backoff_retry(fn, *, attempts: int = 4, base: float = 0.6):
         except Exception as e:
             if i >= attempts - 1 or not _retryable_http(e):
                 raise
-            delay = base * (2 ** i)
-            log.warning("Retryable HTTP error: %s; sleeping %.2fs", type(e).__name__, delay)
+            delay = base * (2**i)
+            log.warning(
+                "Retryable HTTP error: %s; sleeping %.2fs", type(e).__name__, delay
+            )
             time.sleep(delay)
 
+
 # ------------ API compatibility helpers --------------------------------------
+
 
 def _normalize_safety(tier: Optional[str]) -> str:
     """
@@ -96,6 +107,7 @@ def _normalize_safety(tier: Optional[str]) -> str:
     if t == "block_most":
         return "block_most"
     return "block_some"
+
 
 # src/mcp/tools/imagen.py
 import inspect
@@ -122,9 +134,10 @@ log = logging.getLogger("mcp.tools.imagen")
 
 _FALLBACK_ASPECT_TO_SIZE: Dict[str, Tuple[int, int]] = {
     "16:9": (1280, 720),
-    "4:3":  (1024, 768),
-    "1:1":  (1024, 1024),
+    "4:3": (1024, 768),
+    "1:1": (1024, 1024),
 }
+
 
 def _parse_size(s: Optional[str]) -> Optional[Tuple[int, int]]:
     """
@@ -136,6 +149,7 @@ def _parse_size(s: Optional[str]) -> Optional[Tuple[int, int]]:
     if not m:
         return None
     return int(m.group(1)), int(m.group(2))
+
 
 def _get_sizes_map() -> Dict[str, Tuple[int, int]]:
     """
@@ -158,7 +172,9 @@ def _get_sizes_map() -> Dict[str, Tuple[int, int]]:
         pass
     return _FALLBACK_ASPECT_TO_SIZE
 
+
 # ------------ Retry helpers ---------------------------------------------------
+
 
 def _retryable_http(e: Exception) -> bool:
     # Vertex / HTTP retryables
@@ -166,9 +182,12 @@ def _retryable_http(e: Exception) -> bool:
     if status in (429, 500, 502, 503, 504):
         return True
     # gRPC/Vertex typed exceptions that should NOT be retried
-    if isinstance(e, (gexc.FailedPrecondition, gexc.PermissionDenied, gexc.InvalidArgument)):
+    if isinstance(
+        e, (gexc.FailedPrecondition, gexc.PermissionDenied, gexc.InvalidArgument)
+    ):
         return False
     return False
+
 
 def _backoff_retry(fn, *, attempts: int = 4, base: float = 0.6):
     for i in range(attempts):
@@ -177,11 +196,15 @@ def _backoff_retry(fn, *, attempts: int = 4, base: float = 0.6):
         except Exception as e:
             if i >= attempts - 1 or not _retryable_http(e):
                 raise
-            delay = base * (2 ** i)
-            log.warning("Retryable HTTP error: %s; sleeping %.2fs", type(e).__name__, delay)
+            delay = base * (2**i)
+            log.warning(
+                "Retryable HTTP error: %s; sleeping %.2fs", type(e).__name__, delay
+            )
             time.sleep(delay)
 
+
 # ------------ API compatibility helpers --------------------------------------
+
 
 def _normalize_safety(tier: Optional[str]) -> str:
     """
@@ -196,6 +219,7 @@ def _normalize_safety(tier: Optional[str]) -> str:
     if t == "block_most":
         return "block_most"
     return "block_some"
+
 
 def _call_generate_images_resilient(model, base_kwargs: Dict[str, Any]):
     """
@@ -212,6 +236,7 @@ def _call_generate_images_resilient(model, base_kwargs: Dict[str, Any]):
     """
     fn = model.generate_images
     sig = inspect.signature(fn)
+
     def _filtered(kwargs: Dict[str, Any]) -> Dict[str, Any]:
         return {k: v for k, v in kwargs.items() if k in sig.parameters}
 
@@ -242,7 +267,9 @@ def _call_generate_images_resilient(model, base_kwargs: Dict[str, Any]):
     except Exception as e:
         raise last_err or e
 
+
 # ------------ Main tool -------------------------------------------------------
+
 
 def image_generate_tool(params: dict) -> dict:
     """
@@ -320,6 +347,7 @@ def image_generate_tool(params: dict) -> dict:
 
 
 # ------------ Main tool -------------------------------------------------------
+
 
 def image_generate_tool(params: dict) -> dict:
     """

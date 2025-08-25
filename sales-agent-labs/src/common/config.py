@@ -16,7 +16,7 @@ _CONF: Dict[str, Any] | None = None
 # Default search order (first existing wins)
 _DEFAULT_PATHS = [
     pathlib.Path(os.getenv("SALES_AGENT_CONFIG", "")),  # explicit override
-    pathlib.Path(os.getenv("CONFIG_PATH", "")),         # common alias
+    pathlib.Path(os.getenv("CONFIG_PATH", "")),  # common alias
     pathlib.Path("config/config.yaml"),
     pathlib.Path("config.yaml"),
 ]
@@ -34,9 +34,11 @@ _ENV_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 def _expand_env_in_str(s: str) -> str:
     """Expand ${VAR_NAME} using os.environ (missing vars -> empty string)."""
+
     def repl(m: re.Match[str]) -> str:
         var = m.group(1)
         return os.getenv(var, "")
+
     return _ENV_VAR_PATTERN.sub(repl, s)
 
 

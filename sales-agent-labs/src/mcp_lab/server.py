@@ -4,9 +4,13 @@ from typing import Any, Callable, Dict
 
 from .protocol import FramedIO
 from .schemas import (
-    JsonRpcRequest, JsonRpcResponse, JsonRpcErrorObj,
-    ReverseStringParams, ReverseStringResult,
-    DraftSlideOutlineParams, DraftSlideOutlineResult,
+    JsonRpcRequest,
+    JsonRpcResponse,
+    JsonRpcErrorObj,
+    ReverseStringParams,
+    ReverseStringResult,
+    DraftSlideOutlineParams,
+    DraftSlideOutlineResult,
 )
 
 log = logging.getLogger("mcp.server")
@@ -15,10 +19,12 @@ log = logging.getLogger("mcp.server")
 
 ToolFn = Callable[[dict], dict]
 
+
 def tool_reverse_string(params: dict) -> dict:
     p = ReverseStringParams.model_validate(params)
     result = ReverseStringResult(reversed=p.text[::-1])
     return result.model_dump()
+
 
 def tool_draft_slide_outline(params: dict) -> dict:
     p = DraftSlideOutlineParams.model_validate(params)
@@ -26,7 +32,7 @@ def tool_draft_slide_outline(params: dict) -> dict:
     # NOTE: This is a MOCK for Day 10. Later you’ll call Gemini 1.5.
     # Keep logic explainable: extract first line as a title-ish, simple bullets.
     lines = [ln.strip() for ln in p.report_text.splitlines() if ln.strip()]
-    title = (lines[0][:90] if lines else "Opportunity Overview")
+    title = lines[0][:90] if lines else "Opportunity Overview"
     subtitle = "Why this matters to the prospect"
     # Cheap heuristic: pick sentences or short lines as bullets
     candidates = []
@@ -41,6 +47,7 @@ def tool_draft_slide_outline(params: dict) -> dict:
     res = DraftSlideOutlineResult(title=title, subtitle=subtitle, bullets=candidates)
     return res.model_dump()
 
+
 TOOLS: Dict[str, ToolFn] = {
     "reverse_string": tool_reverse_string,
     "draft_slide_outline": tool_draft_slide_outline,
@@ -48,14 +55,17 @@ TOOLS: Dict[str, ToolFn] = {
 
 # ---- JSON-RPC dispatch ------------------------------------------------------
 
+
 def _success(id_: int, result: dict) -> dict:
     return JsonRpcResponse(id=id_, result=result).model_dump()
+
 
 def _error(id_: int, code: int, message: str, data: dict | None = None) -> dict:
     return JsonRpcResponse(
         id=id_,
-        error=JsonRpcErrorObj(code=code, message=message, data=data).model_dump()
+        error=JsonRpcErrorObj(code=code, message=message, data=data).model_dump(),
     ).model_dump()
+
 
 def serve_stdio() -> int:
     io = FramedIO(sys.stdin, sys.stdout)
@@ -74,7 +84,9 @@ def serve_stdio() -> int:
         except Exception as e:
             # Cannot parse as JSON-RPC request; return protocol error if possible
             # (-32600 Invalid Request)
-            io.write_message(_error(id_=msg.get("id", 0), code=-32600, message="Invalid Request"))
+            io.write_message(
+                _error(id_=msg.get("id", 0), code=-32600, message="Invalid Request")
+            )
             continue
 
         try:
@@ -100,14 +112,16 @@ def serve_stdio() -> int:
             # -32000 Server error (include a safe summary; redact internals in production)
             tb = traceback.format_exc(limit=2)
             log.exception("Tool error for %s", req.method)
-            io.write_message(_error(req.id, -32000, "Tool execution failed", data={"trace": tb}))
+            io.write_message(
+                _error(req.id, -32000, "Tool execution failed", data={"trace": tb})
+            )
 
     log.info("Server exiting.")
     return 0
 
+
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
     )
     raise SystemExit(serve_stdio())

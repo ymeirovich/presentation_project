@@ -7,6 +7,7 @@ from .text import to_title, comma_join
 log = logging.getLogger("agent.poke")
 BASE_URL = "https://pokeapi.co/api/v2"
 
+
 # TypedDict: a lightweight way to describe dict shapes for type checkers.
 class PokemonInfo(TypedDict):
     name: str
@@ -16,16 +17,17 @@ class PokemonInfo(TypedDict):
     abilities: List[str]  # list of ability names
     sprite: str | None  # URL to the sprite image
 
-def _extract_pokemon_fields(data:Dict) -> PokemonInfo:
+
+def _extract_pokemon_fields(data: Dict) -> PokemonInfo:
     """
     Extract and normalize fields from the raw PokeAPI JSON.
     Raises DataShapeError if expected fields are missin."""
     try:
         abilities: List[str] = [a["ability"]["name"] for a in data["abilities"]]
-        sprite = data["sprites"]["front_default"] # may be None for some
-        info: PokemonInfo={
+        sprite = data["sprites"]["front_default"]  # may be None for some
+        info: PokemonInfo = {
             "name": data["name"],
-            "id": data["id"], 
+            "id": data["id"],
             "height_dm": data["height"],  # decimeters
             "weight_hg": data["weight"],  # hectograms
             "abilities": abilities,
@@ -34,15 +36,14 @@ def _extract_pokemon_fields(data:Dict) -> PokemonInfo:
         return info
     except KeyError as e:
         # Convert a low-level KeyError into a domain error that callers understand.
-        raise DataShapeError(
-            f"PokeAPI JSON is missing key: {e!s}"
-        ) from e
+        raise DataShapeError(f"PokeAPI JSON is missing key: {e!s}") from e
+
 
 def get_pokemon(name: str) -> Dict:
     """Fetch a Pokemon by name and return a trimmed, validated dict.
-        Separates concerns:
-        - network (get_json)
-        - parsing (_extract_pokemon_fields)
+    Separates concerns:
+    - network (get_json)
+    - parsing (_extract_pokemon_fields)
     """
     url = f"{BASE_URL}/pokemon/{name.lower()}"
     try:
@@ -50,11 +51,12 @@ def get_pokemon(name: str) -> Dict:
     except Exception as e:
         # Wrap network/HTTP issues into a domain exception for higher layers.
         raise ExternalAPIError(f"Failed to GET {url}: {e!s}") from e
-    
-    info=_extract_pokemon_fields(data)
+
+    info = _extract_pokemon_fields(data)
     return info
-    
-def format_pokemon_human(info:PokemonInfo)->str:
+
+
+def format_pokemon_human(info: PokemonInfo) -> str:
     """
     Human-friendly one-liner for CLI or longs.
     Domnstrates how pure helpers (to_title, comma_join) keep this simple."""

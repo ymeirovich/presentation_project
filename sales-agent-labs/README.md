@@ -236,21 +236,29 @@ The orchestrator (`src/mcp_lab/orchestrator.py`) coordinates the entire pipeline
 
 ## 🧪 Testing
 
-### Smoke Tests
+### Unit Tests (Smoke Tests)
 ```bash
 make smoke-test
 ```
+This runs the unit tests, which do not require any external APIs.
 
 ### Live End-to-End Tests
 ```bash
 make live-smoke
 ```
+This runs the live end-to-end tests, which require a connection to Google Cloud services.
 
 ### Individual Tool Tests
 ```bash
 python -m pytest tests/test_orchestrator_live.py
 python -m pytest tests/test_cache_unit.py
 ```
+
+## Recent Changes
+
+- **Bug Fixes**: Addressed several bugs, including a circular import, an `AttributeError` in the MCP client, a `SyntaxError` in the HTTP service, and an `UnboundLocalError` in the orchestrator.
+- **Refactoring**: Improved the structure and readability of the HTTP service and the orchestrator.
+- **Testing**: Updated the testing framework, removed the old smoke tests, and streamlined the test commands in the `Makefile`.
 ## Debugging with debugpy
 ```bash
 DEBUGPY=1 DEBUGPY_WAIT=1 python3 -m src.mcp_lab ./examples/report_demo.txt --slides 3 --no-cache

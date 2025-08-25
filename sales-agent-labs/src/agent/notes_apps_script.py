@@ -6,12 +6,13 @@ from googleapiclient.errors import HttpError
 
 log = logging.getLogger("agent.notes_script")
 
+
 def set_speaker_notes_via_script(
-    creds,                # google.oauth2.credentials.Credentials (must include script.projects scope)
-    script_id: str,       # Apps Script *Script ID* (Project settings → Script ID), NOT deployment id
-    presentation_id: str, # Slides deck ID
-    slide_object_id: str, # target slide objectId
-    text: str,            # notes text
+    creds,  # google.oauth2.credentials.Credentials (must include script.projects scope)
+    script_id: str,  # Apps Script *Script ID* (Project settings → Script ID), NOT deployment id
+    presentation_id: str,  # Slides deck ID
+    slide_object_id: str,  # target slide objectId
+    text: str,  # notes text
 ) -> bool:
     """
     Call Apps Script API to run Code.gs:setSpeakerNotes.

@@ -18,6 +18,7 @@ from src.agent.prompts import MULTI_SLIDE_SYSTEM_PROMPT
 
 log = logging.getLogger("mcp.tools.llm")
 
+
 def _coerce_to_object(data: Any) -> Dict[str, Any]:
     """
     The model sometimes returns a list of one object.
@@ -31,6 +32,7 @@ def _coerce_to_object(data: Any) -> Dict[str, Any]:
         log.debug("Model returned a list; unwrapping the first object.")
         return data[0]
     raise RuntimeError(f"Expected a JSON object, got: {type(data).__name__}")
+
 
 def _call_gemini_once(p: SummarizeParams) -> Dict[str, Any]:
     project = os.getenv("GOOGLE_CLOUD_PROJECT")
@@ -47,10 +49,9 @@ def _call_gemini_once(p: SummarizeParams) -> Dict[str, Any]:
     model = GenerativeModel(model_name)
 
     system_prompt = MULTI_SLIDE_SYSTEM_PROMPT.format(
-        max_sections=p.max_sections, 
-        max_script_chars=p.max_script_chars
+        max_sections=p.max_sections, max_script_chars=p.max_script_chars
     )
-    
+
     prompt = f"Research:\n{p.report_text}\n"
 
     gen_cfg = GenerationConfig(
@@ -59,7 +60,9 @@ def _call_gemini_once(p: SummarizeParams) -> Dict[str, Any]:
         response_mime_type="application/json",
     )
 
-    resp = model.generate_content(contents=[system_prompt, prompt], generation_config=gen_cfg)
+    resp = model.generate_content(
+        contents=[system_prompt, prompt], generation_config=gen_cfg
+    )
     text = (resp.text or "").strip()
 
     # Guard: strip accidental ```json fences
@@ -75,7 +78,10 @@ def _call_gemini_once(p: SummarizeParams) -> Dict[str, Any]:
 
     return _coerce_to_object(raw)
 
-def _retry_json_validate(p: SummarizeParams, attempts: int = 3, base: float = 0.6) -> SummarizeResult:
+
+def _retry_json_validate(
+    p: SummarizeParams, attempts: int = 3, base: float = 0.6
+) -> SummarizeResult:
     last_err: Exception | None = None
     for i in range(attempts):
         try:
@@ -90,12 +96,22 @@ def _retry_json_validate(p: SummarizeParams, attempts: int = 3, base: float = 0.
         except (ValidationError, RuntimeError, HttpError) as e:
             last_err = e
             delay = base * (2**i)
-            jlog(log, logging.WARNING, tool="llm.summarize", event="retry",
-                 attempt=i + 1, delay_s=delay, err=type(e).__name__)
+            jlog(
+                log,
+                logging.WARNING,
+                tool="llm.summarize",
+                event="retry",
+                attempt=i + 1,
+                delay_s=delay,
+                err=type(e).__name__,
+            )
             time.sleep(delay)
 
     assert last_err is not None
-    raise RuntimeError(f"LLM structured output failed after {attempts} attempts: {type(last_err).__name__}: {last_err}")
+    raise RuntimeError(
+        f"LLM structured output failed after {attempts} attempts: {type(last_err).__name__}: {last_err}"
+    )
+
 
 def llm_summarize_tool(params: dict) -> dict:
     p = SummarizeParams.model_validate(params)

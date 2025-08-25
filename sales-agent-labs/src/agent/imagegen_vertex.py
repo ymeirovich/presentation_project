@@ -14,8 +14,8 @@ log = logging.getLogger("agent.imagegen")
 
 # ---- CONFIG ----
 SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
-DEFAULT_LOCATION = "us-central1"          # Imagen is available here
-DEFAULT_MODEL = "imagegeneration@006"     # Adjust if your project has a newer one
+DEFAULT_LOCATION = "us-central1"  # Imagen is available here
+DEFAULT_MODEL = "imagegeneration@006"  # Adjust if your project has a newer one
 
 # If you already have a working token.json from test_vertex.py, this module will reuse it.
 TOKEN_PATH = pathlib.Path("token.json")
@@ -53,7 +53,9 @@ def _vertex_init(project_id: str, location: str, creds: Credentials) -> None:
     vertexai.init(project=project_id, location=location, credentials=creds)
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.6, min=0.6, max=3))
+@retry(
+    stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.6, min=0.6, max=3)
+)
 def generate_image(
     *,
     project_id: str,
@@ -62,8 +64,8 @@ def generate_image(
     location: str = DEFAULT_LOCATION,
     model_name: str = DEFAULT_MODEL,
     number_of_images: int = 1,
-    aspect_ratio: Optional[str] = None,     # e.g., "16:9", "1:1", "4:3"
-    guidance_scale: Optional[int] = None,   # e.g., 50 (higher = adhere more to prompt)
+    aspect_ratio: Optional[str] = None,  # e.g., "16:9", "1:1", "4:3"
+    guidance_scale: Optional[int] = None,  # e.g., 50 (higher = adhere more to prompt)
     negative_prompt: Optional[str] = None,
     safety_filter_level: Optional[str] = None,  # e.g., "block_some"
     seed: Optional[int] = None,

@@ -7,6 +7,7 @@ from .errors import DataShapeError, ExternalAPIError
 log = logging.getLogger("agent.apoke")
 BASE_URL = "https://pokeapi.co/api/v2/pokemon"
 
+
 class PokemonInfo(TypedDict):
     name: str
     id: int
@@ -14,18 +15,20 @@ class PokemonInfo(TypedDict):
     weight_hg: int
     abilities: List[str]
 
+
 def _extract(data: Dict) -> PokemonInfo:
     try:
         return {
-            "name":data["name"],
+            "name": data["name"],
             "id": data["id"],
             "height_dm": data["height"],
             "weight_hg": data["weight"],
             "abilities": [a["ability"]["name"] for a in data["abilities"]],
-            }
+        }
     except KeyError as e:
         raise DataShapeError(f"Pokemon JSON is missing expected key: {e!s}") from e
-    
+
+
 async def aget_pokemon(name: str) -> PokemonInfo:
     """
     Fetch a single Pokemon by name.
@@ -40,13 +43,17 @@ async def aget_pokemon(name: str) -> PokemonInfo:
         raise ExternalAPIError(f"Failed to fetch {url}: {e!s}") from e
     return _extract(data)
 
-async def aget_many(names: Iterable[str], max_concurrency: int=5) -> List[PokemonInfo]:
+
+async def aget_many(
+    names: Iterable[str], max_concurrency: int = 5
+) -> List[PokemonInfo]:
     sem = asyncio.Semaphore(max_concurrency)
-    async def guarded(name:str) -> PokemonInfo:
+
+    async def guarded(name: str) -> PokemonInfo:
         async with sem:
             return await aget_pokemon(name)
-        
-    tasks= [asyncio.create_task(guarded(n)) for n in names]
+
+    tasks = [asyncio.create_task(guarded(n)) for n in names]
     results: List[PokemonInfo] = []
     errors: List[Exception] = []
 

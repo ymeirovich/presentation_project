@@ -2,6 +2,7 @@
 from __future__ import annotations
 import os
 
+
 def maybe_listen(default_port: int = 5678) -> None:
     """
     If DEBUGPY=1 is set, start a debugpy server so VS Code can attach.
@@ -28,11 +29,13 @@ def maybe_listen(default_port: int = 5678) -> None:
         debugpy.wait_for_client()
         print("[debug] VS Code attached.")
 
+
 def maybe_break() -> None:
     """
     Drop into a breakpoint if either VS Code is attached
     or user set DEBUGPY_BREAK=1. Works without VS Code too (falls back to pdb).
     """
     import os, builtins
+
     if os.getenv("DEBUGPY_BREAK") == "1":
         builtins.breakpoint()  # VS Code will catch if attached; otherwise falls to pdb

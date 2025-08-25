@@ -84,6 +84,7 @@ Rules:
 {SALES_SLIDE_JSON_HINT}
 """.strip()
 
+
 def build_user_for_chunk(chunk_text: str) -> str:
     return f"""
     Summarize this chunk:
@@ -93,6 +94,7 @@ def build_user_for_chunk(chunk_text: str) -> str:
     JSON only.
     """.strip()
 
+
 def build_user_for_synthesis(per_chunk_json_list: list[dict]) -> str:
     return f"""
     Here are JSON summaries from all chunks of the report:
@@ -101,6 +103,7 @@ def build_user_for_synthesis(per_chunk_json_list: list[dict]) -> str:
     Synthesize them into the final SalesSlide JSON as specified.
     JSON only.
     """.strip()
+
 
 def build_user_prompt(report_text: str) -> str:
     """

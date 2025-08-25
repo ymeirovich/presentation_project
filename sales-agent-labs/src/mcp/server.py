@@ -5,9 +5,13 @@ import json
 import sys
 import logging
 from typing import Any, Dict
+from src.mcp.tools.data import data_query_tool
+
 
 log = logging.getLogger("mcp.server")
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
 
 # --- Tool registry (allowlist) ------------------------------------------------
 TOOLS: Dict[str, Any] = {}
@@ -18,11 +22,14 @@ try:
     from .tools.imagen import image_generate_tool
     from .tools.slides import slides_create_tool
 
-    TOOLS.update({
-        "llm.summarize": llm_summarize_tool,
-        "image.generate": image_generate_tool,
-        "slides.create":  slides_create_tool,
-    })
+    TOOLS.update(
+        {
+            "llm.summarize": llm_summarize_tool,
+            "image.generate": image_generate_tool,
+            "slides.create": slides_create_tool,
+            "data.query": data_query_tool,
+        }
+    )
 except Exception as e:
     # Import errors will be visible in tests; keep server importable even if a tool fails to import.
     log.warning("Tool imports failed: %s", e)
@@ -32,8 +39,10 @@ except Exception as e:
 def _error(id_: Any, code: int, message: str) -> Dict[str, Any]:
     return {"jsonrpc": "2.0", "id": id_, "error": {"code": code, "message": message}}
 
+
 def _success(id_: Any, result: Any) -> Dict[str, Any]:
     return {"jsonrpc": "2.0", "id": id_, "result": result}
+
 
 def _handle_request(req: Dict[str, Any]) -> Dict[str, Any]:
     id_ = req.get("id")
@@ -51,6 +60,7 @@ def _handle_request(req: Dict[str, Any]) -> Dict[str, Any]:
         # Don’t leak stack traces to clients; log server-side.
         log.exception("Tool '%s' failed", method)
         return _error(id_, -32000, f"{type(e).__name__}: {e}")
+
 
 def serve_stdio() -> int:
     """
@@ -75,6 +85,7 @@ def serve_stdio() -> int:
     sys.stdout.write(json.dumps(resp) + "\n")
     sys.stdout.flush()
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(serve_stdio())

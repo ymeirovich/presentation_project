@@ -3,16 +3,22 @@ from typing import Any, Dict, List
 
 # Custom error so callers can catch validation issues explicitly
 
+
 class ValidationError(Exception):
     """Raised when the payload volates the schema contract."""
+
     def __init__(self, errors: List[str]):
         super().__init__("\n".join(errors))
         self.errors = errors
+
+
 # --- small pure helpers ---
+
 
 def _word_count(s: str) -> int:
     # split() handles multiple spaces / newlines
     return len(s.split())
+
 
 def _trim_to_words(s: str, max_words: int) -> str:
     words = s.split()
@@ -20,23 +26,24 @@ def _trim_to_words(s: str, max_words: int) -> str:
         return s.strip()
     return " ".join(words[:max_words]).strip()
 
-def _is_nonempty_string(x:Any) -> bool:
-    return isinstance(x, str) and x.strip() !=""
+
+def _is_nonempty_string(x: Any) -> bool:
+    return isinstance(x, str) and x.strip() != ""
+
 
 def _normalize_list_of_strings(items: List[str]) -> List[str]:
     """keep only strings, strip whitespace, drop empties"""
-    normed = [i.strip() for i in items if isinstance(i,str)]
+    normed = [i.strip() for i in items if isinstance(i, str)]
     return [i for i in normed if i]
+
 
 # contract & validator
 
 _ALLOWED_KEYS = {"title", "subtitle", "bullets", "script", "image_prompt"}
 
+
 def validate_sales_slide_payload(
-        payload: Dict[str, Any],
-        *,
-        trim_script: bool = True, 
-        forbid_extra: bool = True
+    payload: Dict[str, Any], *, trim_script: bool = True, forbid_extra: bool = True
 ) -> Dict[str, Any]:
     """
     Validate & normalize a one-slide sales payload.
@@ -46,11 +53,11 @@ def validate_sales_slide_payload(
     - bullets: list[str] with 3..5 non-empty items
     - script: str with<= 160 words (trim or error)
     - image_prompt: non-empty str
-    - extra fields: forbidden (default) 
+    - extra fields: forbidden (default)
     """
 
     errors: List[str] = []
-    clean: Dict[str,Any] = {}
+    clean: Dict[str, Any] = {}
 
     # 1) extra fields
     extra = set(payload.keys()) - _ALLOWED_KEYS
@@ -85,7 +92,7 @@ def validate_sales_slide_payload(
         errors.append("'bullets' must be a list of strings")
     else:
         bullets = _normalize_list_of_strings(bullets)
-        if not(3<= len(bullets) <= 5):
+        if not (3 <= len(bullets) <= 5):
             errors.append("'bullets' must have 3 to 5 non-empty items")
         else:
             clean["bullets"] = bullets
@@ -97,7 +104,7 @@ def validate_sales_slide_payload(
     else:
         script = script.strip()
         wc = _word_count(script)
-        if wc>160:
+        if wc > 160:
             if trim_script:
                 script = _trim_to_words(script, 160)
             else:
@@ -114,10 +121,6 @@ def validate_sales_slide_payload(
     else:
         clean["image_prompt"] = image_prompt
     if errors:
-        #One exception with all issues --> better user experience
+        # One exception with all issues --> better user experience
         raise ValidationError(errors)
     return clean
-
-
-
-    
