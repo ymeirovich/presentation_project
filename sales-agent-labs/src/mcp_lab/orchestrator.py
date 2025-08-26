@@ -568,10 +568,11 @@ def orchestrate_mixed(
                     "client_request_id": per_slide_id,
                     "presentation_id": pres_id,  # None on first slide → tool will create deck
                     "title": q,
-                    "bullets": dq.get("insights") or [],
+                    "bullets": dq.get("bullets") or dq.get("insights") or [],  # NEW: Use MVP bullets first, fallback to insights
                     "script": _truncate_script(dq.get("table_md") or "", 690),
                     "aspect": "16:9",
                     "share_image_public": True,
+                    "use_cache": use_cache,  # NEW: Pass through use_cache parameter
                 }
                 if dq.get("chart_png_path"):
                     params["image_local_path"] = dq["chart_png_path"]

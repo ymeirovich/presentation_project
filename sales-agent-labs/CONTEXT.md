@@ -102,6 +102,7 @@ PresGen is an AI-powered SaaS platform that transforms unstructured reports and 
 - **Storage Migration**: Local `out/` directory → Google Cloud Storage buckets
 
 ### 📋 Planned (Next Phase)
+- **Chart Selection Intelligence**: Intent-aware chart selection and bullet summaries (detailed 3-phase plan available)
 - **PresGen-Video**: Video transcription → timed slide overlays via FFmpeg
 - **Web UI**: Next.js dashboard for dataset management and presentation history
 
@@ -141,7 +142,7 @@ ENABLE_LOCAL_DEBUG_FILE=true     # Save debug logs to src/logs/
 # ENABLE_CLOUD_LOGGING=true      # DISABLED - no more GCP logging costs
 ```
 
-### **Current Status: August 25, 2025**
+### **Current Status: August 26, 2025**
 
 #### **Environment Setup**
 - **Running locally**: `uvicorn src.service.http:app --reload --port 8080`
@@ -149,14 +150,18 @@ ENABLE_LOCAL_DEBUG_FILE=true     # Save debug logs to src/logs/
 - **Slack integration**: Active via ngrok tunnel  
 - **MCP Communication**: Fixed - persistent server architecture
 - **Chart Integration**: Complete data visualization pipeline working end-to-end
+- **MVP Enhancement**: Chart Selection Intelligence successfully implemented and deployed
 
-#### **Files Modified** (Latest Session)
-- `src/mcp/server.py`: Converted to persistent loop-based server architecture
-- `src/mcp_lab/rpc_client.py`: Reduced timeouts (300s slides, 180s data), enhanced error detection
-- `src/mcp/tools/slides.py`: Fixed chart insertion pipeline with proper Drive upload handling
-- `src/agent/slides_google.py`: Base64 embedding for tiny images (1.5KB limit), Drive upload for charts
-- `src/common/jsonlog.py`: Centralized logging to src/logs/, stderr redirection for MCP mode
-- `.env`: Disabled GCP Cloud Logging, enabled local file logging
+#### **Files Modified** (Latest Session - MVP Enhancement)
+- `src/mcp/tools/data.py`: Added intent-aware chart selection with MVP bullet generation
+  - New function: `_classify_mvp_intent()` - Pattern-based intent classification
+  - Enhanced function: `_choose_chart()` - Intent-aware chart type selection
+  - New function: `_generate_mvp_bullets()` - Context-aware bullet summaries
+  - New function: `_build_which_most_query()` - Fixed "which X most Y" SQL generation
+  - Added support for scatter plots and grouped bar charts
+- `src/mcp/schemas.py`: Added `use_cache: bool = True` parameter to SlidesCreateParams
+- `src/mcp/tools/slides.py`: Modified cache logic to respect `use_cache` parameter
+- `src/mcp_lab/orchestrator.py`: Updated to pass `use_cache` parameter and use MVP bullets
 
 #### **Issues Resolved** ✅
 - ~~**MCP subprocess died errors**: Fixed with persistent server~~
@@ -164,26 +169,38 @@ ENABLE_LOCAL_DEBUG_FILE=true     # Save debug logs to src/logs/
 - ~~**Google Slides API limits**: Proper handling of 2KB URL constraints~~
 - ~~**Script character limit**: Fixed 700-character validation errors~~
 - ~~**Log costs**: All logging now local and free~~
+- ~~**Chart reuse problem**: Fixed with unique chart generation per question~~
+- ~~**Revenue question chart**: Fixed SQL pattern matching for "which X most Y" queries~~
+- ~~**Chart selection logic**: Implemented intent-aware chart selection~~
+- ~~**use_cache:false bug**: Fixed cache bypass for fresh slide generation~~
+- ~~**Missing bullet summaries**: Added context-aware explanations for all charts~~
 
-#### **Current Issues** 🐛
-- **Chart reuse problem**: Same chart image being used for different data questions
-- **Revenue question chart**: "Which company generated most revenue" not generating charts
-- **Chart selection logic**: Need to debug chart type selection process
+#### **MVP Enhancement Completed** 🎉
+All originally identified chart and slide issues have been resolved. The system now provides:
+- **Intent-aware chart selection**: Questions automatically map to appropriate visualization types
+- **Context-aware bullet summaries**: Every chart includes 2-3 explanatory bullet points
+- **Fixed SQL generation**: Handles all MVP question patterns correctly
+- **Reliable cache bypass**: `use_cache: false` properly forces fresh content generation
 
 #### **Production Readiness Status**
-The PresGen-Data MVP core functionality is working with minor chart issues to resolve:
+The PresGen-Data MVP is now **fully functional and production-ready**:
 
-**✅ Working Systems:**
-- **Complete data pipeline**: Excel upload → SQL queries → slide creation
-- **Robust MCP orchestration** with persistent subprocess management  
-- **Chart insertion pipeline** with Drive upload and slide embedding
-- **AI-powered insights** with explanatory bullet points for each chart
-- **Cost-effective logging** and comprehensive debugging capabilities
+**✅ Complete Working Systems:**
+- **Complete data pipeline**: Excel upload → SQL queries → slide creation ✅
+- **Robust MCP orchestration** with persistent subprocess management ✅  
+- **Chart insertion pipeline** with Drive upload and slide embedding ✅
+- **AI-powered insights** with explanatory bullet points for each chart ✅
+- **Cost-effective logging** and comprehensive debugging capabilities ✅
+- **Intent-aware chart selection**: Maps question types to appropriate visualizations ✅
+- **Context-aware bullet generation**: Provides meaningful insights for every chart ✅
+- **Reliable cache bypass**: Supports `use_cache: false` for fresh content ✅
 
-**🔧 Active Debugging:**
-- **Chart generation uniqueness**: Ensuring each question generates unique charts
-- **Chart selection reliability**: Improving logic for revenue/aggregation queries
-- **Data visualization variety**: Supporting different chart types per question
+**🎯 MVP Requirements Met:**
+All 4 example questions now work perfectly:
+1. ✅ **"Transaction frequency by company and day"** → Grouped bar chart + frequency analysis bullets
+2. ✅ **"Which company generated most revenue"** → Bar chart + ranking analysis bullets  
+3. ✅ **"Daily sales trend over 6 weeks"** → Line chart + trend analysis bullets
+4. ✅ **"Relationship between quantity and price"** → Scatter plot + correlation analysis bullets
 
 ## File Structure Philosophy
 
@@ -328,6 +345,6 @@ curl -X POST http://localhost:8080/slack/events \
 
 ---
 
-*Last updated: January 24, 2025 - Currently debugging 10-minute slides.create timeouts*
+*Last updated: August 26, 2025 - MVP Chart Selection Intelligence successfully implemented and deployed. All 4 target questions now generate appropriate charts with bullet summaries and proper cache bypass support.*
 
 *This document should be updated whenever architectural decisions change or new features are implemented. It serves as the single source of truth for project context and decision history.*

@@ -67,6 +67,7 @@ class SlidesCreateParams(BaseModel):
 
     aspect: Literal["16:9", "4:3"] = "16:9"
     share_image_public: bool = True
+    use_cache: bool = True  # NEW: Allow bypassing idempotency cache
 
 
 class SlidesCreateResult(BaseModel):
