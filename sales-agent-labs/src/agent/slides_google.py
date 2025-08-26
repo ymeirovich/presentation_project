@@ -350,8 +350,10 @@ def _get_notes_shape_id(
         if s.get("objectId") != page_object_id:
             continue
 
-        notes_page = s.get("notesPage") or {}
-        props = notes_page.get("notesProperties") or {}
+        # Access notes page via the correct path: slideProperties.notesPage
+        slide_props = s.get("slideProperties", {})
+        notes_page = slide_props.get("notesPage", {})
+        props = notes_page.get("notesProperties", {})
 
         # ✅ Primary path (official pointer). If the actual shape doesn't exist yet,
         # inserting text with this ID will auto-create it.
@@ -379,7 +381,9 @@ def _get_notes_page_id(slides, presentation_id: str, page_object_id: str) -> str
     pres = slides.presentations().get(presentationId=presentation_id).execute()
     for s in pres.get("slides", []):
         if s.get("objectId") == page_object_id:
-            notes_page = s.get("notesPage") or {}
+            # Access notes page via the correct path: slideProperties.notesPage
+            slide_props = s.get("slideProperties", {})
+            notes_page = slide_props.get("notesPage", {})
             npid = notes_page.get("objectId")
             if npid:
                 return npid
@@ -892,37 +896,66 @@ def create_main_slide_with_content(
         _log_http_error("create_main_slide_with_content.layout", e)
         raise
 
-    # --- Speaker notes via Apps Script (preferred & reliable) ---
+    # --- Speaker notes with multiple fallback strategies ---
     if script:
-        log.debug("Script ID: %s", os.getenv("APPS_SCRIPT_SCRIPT_ID"))
-        log.debug("creds.scopes: %s", getattr(creds, "scopes", None))
-
-        script_id = os.getenv("APPS_SCRIPT_SCRIPT_ID", "").strip()
-        if not script_id:
-            log.warning("APPS_SCRIPT_SCRIPT_ID not set; skipping Apps Script notes.")
-        else:
-            from .notes_apps_script import set_speaker_notes_via_script as _notes_func
-
-            log.debug(
-                "notes helper loaded from: %s",
-                sys.modules[_notes_func.__module__].__file__,
-            )
-            log.debug("notes helper signature: %s", inspect.signature(_notes_func))
-            ok = _notes_func(
-                creds,  # 1) creds
-                script_id,  # 2) Apps Script Script ID
-                presentation_id,  # 3) deck id
-                slide_id,  # 4) slide object id
-                script,  # 5) notes text
-            )
-
-            if ok:
-                log.info("Speaker notes added via Apps Script.")
+        log.debug("Setting speaker notes for slide: %s", slide_id)
+        
+        # Strategy 1: Try enhanced native API (most reliable)
+        try:
+            from .notes_native_api import set_speaker_notes_native
+            
+            log.debug("Attempting speaker notes via enhanced native API")
+            if set_speaker_notes_native(slides, presentation_id, slide_id, script):
+                log.info("✅ Speaker notes set via enhanced native API")
+                return slide_id
             else:
-                log.warning(
-                    "Failed to set speaker notes via Apps Script; falling back to on-slide script box."
-                )
-                _add_on_slide_script_box(slides, presentation_id, slide_id, script)
+                log.warning("Enhanced native API returned False")
+                
+        except Exception as e:
+            log.warning("Enhanced native API failed with exception: %s", e)
+        
+        # Strategy 2: Try Apps Script (if configured)
+        script_id = os.getenv("APPS_SCRIPT_SCRIPT_ID", "").strip()
+        if script_id:
+            try:
+                from .notes_apps_script import set_speaker_notes_via_script as _notes_func
+                
+                log.debug("Attempting Apps Script notes with ID: %s", script_id)
+                if _notes_func(creds, script_id, presentation_id, slide_id, script):
+                    log.info("Speaker notes set via Apps Script")
+                    return slide_id
+                else:
+                    log.warning("Apps Script method failed (insufficient scopes)")
+                    
+            except Exception as e:
+                log.warning("Apps Script method failed: %s", e)
+        
+        # Strategy 3: Legacy native approach
+        try:
+            notes_shape_id = _get_notes_shape_id(slides, presentation_id, slide_id)
+            if notes_shape_id:
+                slides.presentations().batchUpdate(
+                    presentationId=presentation_id,
+                    body={
+                        "requests": [{
+                            "insertText": {
+                                "objectId": notes_shape_id,
+                                "insertionIndex": 0,
+                                "text": script,
+                            }
+                        }]
+                    },
+                ).execute()
+                log.info("Speaker notes set via legacy native API")
+                return slide_id
+                
+        except Exception as e:
+            log.warning("Legacy native method failed: %s", e)
+        
+        # Strategy 4: Guaranteed fallback - visible script box
+        log.warning("🚨 All speaker notes methods failed, falling back to visible script box on slide")
+        log.warning("This means speaker notes will appear as visible text, not in Speaker Notes panel")
+        _add_on_slide_script_box(slides, presentation_id, slide_id, script)
 
     return slide_id
 
