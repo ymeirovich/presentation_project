@@ -103,10 +103,15 @@ def orchestrate(
                 },
                 req_id=req_id,
             )
-            # 🔧 print raw JSON to console for this run
-            import json
-
-            print(json.dumps(s, indent=2, ensure_ascii=False))
+            # 🔧 Debug log instead of print to avoid JSON serialization issues
+            jlog(
+                log,
+                logging.DEBUG,
+                event="llm_summarize_raw_result",
+                sections_count=len(s.get("sections", [])),
+                req_id=req_id,
+                result_keys=list(s.keys()) if isinstance(s, dict) else []
+            )
             return s
 
     if use_cache:
@@ -250,40 +255,107 @@ def orchestrate(
                             layer="image.generate",
                             req_id=per_slide_id,
                         )
-                        image_url = icached.get("image_url")
+                        raw_image_url = icached.get("image_url")
                         image_drive_file_id = icached.get("drive_file_id")
+                        
+                        # Ensure cached image_url is a string, not bytes
+                        if isinstance(raw_image_url, bytes):
+                            jlog(log, logging.ERROR, event="cached_image_url_is_bytes", 
+                                 req_id=per_slide_id, bytes_length=len(raw_image_url))
+                            image_url = None  # Don't use bytes as URL
+                        else:
+                            image_url = raw_image_url
                     else:
+                        try:
+                            g = _imagen_call()
+                            # Check if result contains any bytes objects
+                            if any(isinstance(v, bytes) for v in (g.values() if isinstance(g, dict) else [])):
+                                jlog(log, logging.ERROR, event="imagen_result_contains_bytes", req_id=per_slide_id)
+                                # Clean the result
+                                g = {k: ("<bytes_removed>" if isinstance(v, bytes) else v) 
+                                     for k, v in g.items()} if isinstance(g, dict) else g
+                            jlog(
+                                log,
+                                logging.INFO,
+                                event="image_generate_raw",
+                                req_id=per_slide_id,
+                                result_keys=list(g.keys()) if isinstance(g, dict) else [],
+                                has_image_url=bool(g.get("image_url") or g.get("url")),
+                                has_drive_file_id=bool(g.get("drive_file_id")),
+                                has_local_path=bool(g.get("local_path"))
+                            )
+                            raw_image_url = g.get("image_url") or g.get("url")
+                            image_drive_file_id = g.get("drive_file_id")
+                            image_local_path = g.get("local_path")
+                            
+                            # Ensure image_url is a string, not bytes
+                            if isinstance(raw_image_url, bytes):
+                                jlog(log, logging.ERROR, event="image_url_is_bytes", 
+                                     req_id=per_slide_id, bytes_length=len(raw_image_url))
+                                image_url = None  # Don't use bytes as URL
+                            else:
+                                image_url = raw_image_url
+                            cache_set(
+                                "imagen",
+                                ikey,
+                                {
+                                    "image_url": image_url,
+                                    "drive_file_id": image_drive_file_id,
+                                },
+                            )
+                            jlog(
+                                log,
+                                logging.INFO,
+                                event="cache_miss_store",
+                                layer="image.generate",
+                                req_id=per_slide_id,
+                            )
+                        except Exception as e:
+                            jlog(
+                                log,
+                                logging.WARNING,
+                                event="image_generate_failed",
+                                req_id=per_slide_id,
+                                error=str(e),
+                                fallback="proceeding_without_image"
+                            )
+                            # Continue without image - set all image variables to None
+                            image_url = None
+                            image_drive_file_id = None
+                            image_local_path = None
+                else:
+                    try:
                         g = _imagen_call()
-                        jlog(
-                            log,
-                            logging.INFO,
-                            event="image_generate_raw",
-                            req_id=per_slide_id,
-                            result=g,
-                        )
-                        image_url = g.get("image_url") or g.get("url")
+                        # Check if result contains any bytes objects  
+                        if any(isinstance(v, bytes) for v in (g.values() if isinstance(g, dict) else [])):
+                            jlog(log, logging.ERROR, event="imagen_result_contains_bytes_no_cache", req_id=per_slide_id)
+                            # Clean the result
+                            g = {k: ("<bytes_removed>" if isinstance(v, bytes) else v) 
+                                 for k, v in g.items()} if isinstance(g, dict) else g
+                        raw_image_url = g.get("image_url") or g.get("url")
                         image_drive_file_id = g.get("drive_file_id")
                         image_local_path = g.get("local_path")
-                        cache_set(
-                            "imagen",
-                            ikey,
-                            {
-                                "image_url": image_url,
-                                "drive_file_id": image_drive_file_id,
-                            },
-                        )
+                        
+                        # Ensure image_url is a string, not bytes
+                        if isinstance(raw_image_url, bytes):
+                            jlog(log, logging.ERROR, event="image_url_is_bytes_no_cache", 
+                                 req_id=per_slide_id, bytes_length=len(raw_image_url))
+                            image_url = None  # Don't use bytes as URL
+                        else:
+                            image_url = raw_image_url
+                    except Exception as e:
                         jlog(
                             log,
-                            logging.INFO,
-                            event="cache_miss_store",
-                            layer="image.generate",
+                            logging.WARNING,
+                            event="image_generate_failed_no_cache",
                             req_id=per_slide_id,
+                            error=str(e),
+                            fallback="proceeding_without_image"
                         )
-                else:
-                    g = _imagen_call()
-                    image_url = g.get("image_url") or g.get("url")
-                    image_drive_file_id = g.get("drive_file_id")
-                    image_local_path = g.get("local_path")
+                        # Continue without image - set all image variables to None
+                        image_url = None
+                        image_drive_file_id = None
+                        image_local_path = None
 
                 if not (image_url or image_drive_file_id or image_local_path):
                     jlog(
@@ -322,17 +394,46 @@ def orchestrate(
         if created_pres_id:
             slide_params["presentation_id"] = created_pres_id  # append mode
 
-        import json
-
-        print(
-            f"DEBUG: slide_params for slide {idx}: {json.dumps(slide_params, indent=2)}"
+        # Validate slide_params for bytes objects before sending to MCP server
+        bytes_keys = []
+        for key, value in slide_params.items():
+            if isinstance(value, bytes):
+                jlog(log, logging.ERROR, event="slide_params_contains_bytes", 
+                     key=key, bytes_length=len(value), req_id=per_slide_id)
+                bytes_keys.append(key)
+        
+        # Remove bytes objects to prevent JSON serialization error
+        for key in bytes_keys:
+            del slide_params[key]
+            
+        if bytes_keys:
+            jlog(log, logging.WARNING, event="removed_bytes_from_slide_params", 
+                 removed_keys=bytes_keys, req_id=per_slide_id)
+        
+        # Debug log slide params safely
+        safe_params = {k: v for k, v in slide_params.items() if not isinstance(v, bytes)}
+        safe_params['has_image_url'] = bool(slide_params.get('image_url'))
+        safe_params['has_image_drive_file_id'] = bool(slide_params.get('image_drive_file_id'))
+        safe_params['has_image_local_path'] = bool(slide_params.get('image_local_path'))
+        
+        jlog(
+            log,
+            logging.DEBUG,
+            event="slide_params_debug",
+            slide_index=idx,
+            req_id=per_slide_id,
+            slide_params=safe_params
         )
 
         with MCPClient() as client:
             try:
+                jlog(log, logging.INFO, event="slides_create_attempt", 
+                     req_id=per_slide_id, slide_index=idx, presentation_id=created_pres_id)
                 create_res = client.call(
                     "slides.create", slide_params, req_id=per_slide_id, timeout=120.0
                 )
+                jlog(log, logging.INFO, event="slides_create_success", 
+                     req_id=per_slide_id, result_keys=list(create_res.keys()))
             except TimeoutError as e:
                 jlog(
                     log,
@@ -340,9 +441,25 @@ def orchestrate(
                     event="slides_create_timeout",
                     req_id=per_slide_id,
                     err=str(e),
+                    slide_params_keys=list(slide_params.keys()),
+                    timeout=120.0
                 )
                 # continue; record a placeholder so we still finish the deck
                 continue
+            except Exception as e:
+                import traceback
+                jlog(
+                    log,
+                    logging.ERROR,
+                    event="slides_create_exception",
+                    req_id=per_slide_id,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                    stack_trace=traceback.format_exc(),
+                    slide_params_keys=list(slide_params.keys())
+                )
+                # Re-raise this exception since it's likely a critical error
+                raise
         if idx == 1:
             created_pres_id = create_res.get("presentation_id") or created_pres_id
             deck_url = create_res.get("url") or deck_url
@@ -358,6 +475,13 @@ def orchestrate(
             slide_id=create_res.get("slide_id"),
         )
 
+    result = {
+        "presentation_id": created_pres_id,
+        "url": deck_url,
+        "created_slides": actual,
+        "first_slide_id": first_slide_id,
+    }
+
     jlog(
         log,
         logging.INFO,
@@ -366,14 +490,10 @@ def orchestrate(
         presentation_id=created_pres_id,
         url=deck_url,
         created_slides=actual,
+        result_dict=result,
     )
 
-    return {
-        "presentation_id": created_pres_id,
-        "url": deck_url,
-        "created_slides": actual,
-        "first_slide_id": first_slide_id,
-    }
+    return result
 
 
 def _stable_request_id(report_text: str) -> str:
@@ -499,15 +619,28 @@ def orchestrate_mixed(
     
     # Create narrative slides first (if any)
     if narrative_slides > 0:
-        base = orchestrate(
-            report_text,
-            client_request_id=client_request_id,
-            slide_count=narrative_slides,
-            use_cache=use_cache,
-        )
-        pres_id = pres_id or base.get("presentation_id")
-        deck_url = deck_url or base.get("url")
-        total_created += base.get("created_slides") or 0
+        try:
+            jlog(log, logging.INFO, event="orchestrate_mixed_narrative_begin", 
+                 narrative_slides=narrative_slides, req_id=client_request_id)
+            base = orchestrate(
+                report_text,
+                client_request_id=client_request_id,
+                slide_count=narrative_slides,
+                use_cache=use_cache,
+            )
+            pres_id = pres_id or base.get("presentation_id")
+            deck_url = deck_url or base.get("url")
+            total_created += base.get("created_slides") or 0
+            jlog(log, logging.INFO, event="orchestrate_mixed_narrative_success", 
+                 created_slides=base.get("created_slides"), pres_id=pres_id, 
+                 has_url=bool(deck_url), req_id=client_request_id)
+        except Exception as e:
+            import traceback
+            jlog(log, logging.ERROR, event="orchestrate_mixed_narrative_failed", 
+                 error=str(e), error_type=type(e).__name__, 
+                 stack_trace=traceback.format_exc(), req_id=client_request_id)
+            # Don't continue with data slides if narrative creation failed
+            raise
 
     # Create data slides (limited by allocation)
     if dataset_id and data_questions:

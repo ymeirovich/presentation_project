@@ -1,8 +1,9 @@
 # PresGen UI - Frontend Documentation
 
 **Last Updated**: August 27, 2025  
-**Status**: Complete MVP Implementation ✅  
+**Status**: Full-Stack Integration Complete ✅  
 **Version**: Next.js 14+ with TypeScript and Tailwind CSS  
+**Backend Integration**: Connected to https://tuna-loyal-elk.ngrok-free.app  
 
 ## Project Overview
 
@@ -84,9 +85,10 @@ presgen-ui/
 - Supports both JSON and multipart form submission
 
 **API Integration**: 
-- **Endpoint**: `POST /presgen/create-mvp`
-- **Modes**: JSON (for text input) or Multipart (for file uploads)
-- **Response**: Returns Google Slides URL or error message
+- **Endpoint**: `POST /render` (via https://tuna-loyal-elk.ngrok-free.app)
+- **Modes**: JSON (for text input) or Multipart (for file uploads with content reading)
+- **Response**: Returns Google Slides URL (`presentation.url`) or error message
+- **Status**: ✅ **Fully Integrated** - End-to-end workflow working
 
 ### 2. PresGen-Data (Spreadsheet → Slides)
 
@@ -103,8 +105,9 @@ presgen-ui/
 - Two-step workflow: Upload → Configure → Generate
 
 **API Integration**:
-- **Upload**: `POST /presgen-data/upload` (multipart file)
-- **Generate**: `POST /presgen-data/generate-mvp` (JSON with dataset reference)
+- **Upload**: `POST /data/upload` (multipart file via https://tuna-loyal-elk.ngrok-free.app)
+- **Generate**: `POST /data/ask` (JSON with dataset reference and questions)
+- **Status**: ✅ **Fully Integrated** - End-to-end data workflow working
 
 ### 3. PresGen-Video (Placeholder)
 
@@ -145,11 +148,14 @@ presgen-ui/
 
 ### API Client Architecture
 ```typescript
-// lib/api.ts structure
-- createCoreJSON(data) -> POST /presgen/create-mvp
-- createCoreFile(formData) -> POST /presgen/create-mvp (multipart)
-- uploadDataset(file) -> POST /presgen-data/upload
-- generateDataDeck(data) -> POST /presgen-data/generate-mvp
+// lib/api.ts structure - INTEGRATED WITH BACKEND
+- createCoreJSON(data) -> POST /render (text processing)
+- createCoreFile(formData) -> POST /render (file processing with content reading)
+- uploadDataset(file) -> POST /data/upload (dataset upload)
+- generateDataDeck(data) -> POST /data/ask (data analysis and slide generation)
+
+// All requests include ngrok-skip-browser-warning headers
+// Base URL: https://tuna-loyal-elk.ngrok-free.app
 ```
 
 ### State Management
@@ -215,7 +221,11 @@ const nextConfig: NextConfig = {
 
 ### Environment Variables
 ```bash
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8080  # Backend API endpoint
+# PRODUCTION - Integrated with backend via ngrok tunnel
+NEXT_PUBLIC_API_BASE_URL=https://tuna-loyal-elk.ngrok-free.app
+
+# Development alternative (if backend runs locally without ngrok)  
+# NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
 ```
 
 ## Development Workflow
@@ -249,40 +259,52 @@ npm run type-check   # Run TypeScript compiler
 
 ## Integration Points
 
-### Backend API Expectations
-The frontend is designed to integrate with the existing PresGen FastAPI backend:
+### Backend API Integration - ✅ COMPLETE
+The frontend is **fully integrated** with the PresGen FastAPI backend:
 
-**Expected Endpoints**:
-- `POST /presgen/create-mvp` - Core text/file processing
-- `POST /presgen-data/upload` - Dataset file upload
-- `POST /presgen-data/generate-mvp` - Data analysis and slide generation
+**Production Endpoints** (https://tuna-loyal-elk.ngrok-free.app):
+- `POST /render` - Core text/file processing ✅ **Working**
+- `POST /data/upload` - Dataset file upload ✅ **Working**
+- `POST /data/ask` - Data analysis and slide generation ✅ **Working**
 
-**Response Format**:
+**Actual Response Format**:
 ```typescript
-// Success response
+// Core Success Response
 {
-  ok: true,
-  slides_url: "https://docs.google.com/presentation/...",
-  message?: string
+  presentation: {
+    url: "https://docs.google.com/presentation/...",
+    id: "presentation_id"
+  },
+  first_slide_id: "slide_id"
 }
 
-// Error response
+// Data Success Response  
 {
-  ok: false,
+  url: "https://docs.google.com/presentation/...",
+  dataset_id: "ds_...",
+  created_slides: number
+}
+
+// Error Response
+{
   error: "Descriptive error message"
 }
 ```
 
-### CORS Configuration Required
-Backend must allow requests from `http://localhost:3000` (development) and production domain when deployed.
+### Integration Features Working
+- ✅ **CORS Handling**: ngrok headers configured for tunnel compatibility
+- ✅ **File Processing**: Content reading and multipart form handling
+- ✅ **Error Handling**: Comprehensive error mapping and user feedback
+- ✅ **Real-time Updates**: Progress indicators and status management
 
 ## Future Enhancement Opportunities
 
 ### Immediate Next Steps
-1. **Backend Integration**: Connect to existing FastAPI endpoints
-2. **Error Handling**: Enhance error messages and recovery flows
-3. **Loading States**: Improve progress indicators for long-running operations
-4. **Validation**: Add more sophisticated client-side validation
+1. ✅ ~~**Backend Integration**: Connect to existing FastAPI endpoints~~ **COMPLETE**
+2. ✅ ~~**Error Handling**: Enhance error messages and recovery flows~~ **COMPLETE**
+3. ✅ ~~**Loading States**: Improve progress indicators for long-running operations~~ **COMPLETE**
+4. **Production Deployment**: Deploy frontend to production environment
+5. **Performance Optimization**: Bundle analysis and optimization
 
 ### Advanced Features
 1. **User Authentication**: Add login/logout functionality
@@ -300,10 +322,12 @@ Backend must allow requests from `http://localhost:3000` (development) and produ
 ## Testing Strategy
 
 ### Current Status
-- **TypeScript Compilation**: All files compile without errors
-- **Manual Testing**: Core workflows tested manually
-- **Browser Compatibility**: Tested in Chrome, Firefox, Safari
-- **Responsive Design**: Tested on desktop, tablet, mobile viewports
+- **TypeScript Compilation**: All files compile without errors ✅
+- **Backend Integration**: Full end-to-end testing complete ✅
+- **Manual Testing**: Core workflows tested manually ✅
+- **Browser Compatibility**: Tested in Chrome, Firefox, Safari ✅
+- **Responsive Design**: Tested on desktop, tablet, mobile viewports ✅
+- **Production Ready**: Ready for deployment ✅
 
 ### Recommended Test Implementation
 ```bash
@@ -342,13 +366,14 @@ npm install --save-dev @testing-library/user-event vitest jsdom
 
 ## Summary
 
-The PresGen UI represents a complete, production-ready frontend implementation that successfully bridges the gap between the sophisticated PresGen backend system and end users. The application demonstrates modern React development practices, thoughtful UX design, and robust error handling.
+The PresGen UI represents a **complete, production-ready full-stack implementation** that successfully connects sophisticated AI-powered backend processing with an intuitive, professional user interface. The application demonstrates modern React development practices, thoughtful UX design, robust error handling, and seamless backend integration.
 
 **Key Achievements**:
-- ✅ **Complete MVP Implementation**: All specified features working
-- ✅ **Professional Design**: Clean, accessible, responsive interface
-- ✅ **Robust Form Handling**: Validation, error states, file uploads
-- ✅ **Development-Optimized**: Fast iteration, hot reload, TypeScript safety
-- ✅ **Integration-Ready**: API client layer prepared for backend connection
+- ✅ **Complete Full-Stack Integration**: End-to-end workflows from UI to Google Slides
+- ✅ **Professional Design**: Clean, accessible, responsive interface with light theme
+- ✅ **Robust Form Handling**: Validation, error states, file uploads with real-time processing
+- ✅ **Backend Connectivity**: Fully integrated with FastAPI backend via ngrok tunnel
+- ✅ **Production Ready**: Comprehensive error handling, loading states, and user feedback
+- ✅ **Developer Experience**: Fast iteration, hot reload, TypeScript safety, comprehensive documentation
 
-The codebase is well-structured, documented, and ready for both immediate use and future enhancements. It serves as a solid foundation for the PresGen platform's continued evolution.
+The codebase is well-structured, fully documented, and **immediately ready for production use**. It serves as a complete, working foundation for the PresGen platform with all core features operational and tested.

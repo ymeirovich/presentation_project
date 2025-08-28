@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch"
 import { FileDrop } from "./FileDrop"
 import { MarkdownPreview } from "./MarkdownPreview"
 import { ServerResponseCard, ServerResponse } from "./ServerResponseCard"
-import { CoreFormSchema, CoreFormData } from "@/lib/schemas"
+import { CoreFormSchema, CoreFormWithTextSchema, CoreFormData } from "@/lib/schemas"
 import { createPresentation, ApiError } from "@/lib/api"
 import { ACCEPTED_TEXT_FILES, TEMPLATE_STYLES } from "@/lib/types"
 import { toast } from "sonner"
@@ -67,13 +67,25 @@ export function CoreForm({ className }: CoreFormProps) {
       return
     }
 
+    // If no file is uploaded, validate the text meets minimum requirements
+    if (!uploadedFile) {
+      const textValidation = CoreFormWithTextSchema.safeParse(data)
+      if (!textValidation.success) {
+        const textError = textValidation.error.issues.find(e => e.path.includes('report_text'))
+        if (textError) {
+          toast.error(textError.message)
+          return
+        }
+      }
+    }
+
     setIsSubmitting(true)
     setServerResponse(null)
 
     try {
-      // If file is uploaded, text from file takes precedence
+      // Prepare request data - file content will be read in the API layer
       const requestData = {
-        report_text: uploadedFile ? "" : data.report_text,
+        report_text: data.report_text,
         presentation_title: data.presentation_title,
         slide_count: data.slide_count,
         include_images: data.include_images,
@@ -132,10 +144,15 @@ export function CoreForm({ className }: CoreFormProps) {
             {/* Content Input Section */}
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="report_text">Report Text</Label>
+                <Label htmlFor="report_text">
+                  Report Text {!uploadedFile && <span className="text-muted-foreground text-sm">(minimum 50 characters required if no file uploaded)</span>}
+                </Label>
                 <Textarea
                   id="report_text"
-                  placeholder="Enter your text content here (or upload a file below)..."
+                  placeholder={uploadedFile 
+                    ? "File content will be used for presentation generation..." 
+                    : "Enter your text content here (minimum 50 characters) or upload a file below..."
+                  }
                   className="min-h-32"
                   {...register("report_text")}
                   disabled={!!uploadedFile}

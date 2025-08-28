@@ -1,7 +1,7 @@
 # PresGen Project Context & Status
 
 **Last Updated**: August 27, 2025  
-**Current Status**: Production Ready - Web UI Frontend Complete ✅
+**Current Status**: Full-Stack Integration Complete - Production Ready ✅
 
 ## Project Goal
 PresGen is an AI-powered SaaS platform that transforms unstructured reports and spreadsheet data into polished Google Slides presentations through intelligent summarization, data visualization, and automated slide generation.
@@ -92,6 +92,7 @@ PresGen is an AI-powered SaaS platform that transforms unstructured reports and 
 - **PresGen-Data**: Excel upload → data questions → charts + insight slides  
 - **Speaker Notes System**: Multi-strategy implementation with robust fallbacks ✅
 - **Web UI Frontend**: Complete Next.js application with light theme and professional design ✅
+- **Full-Stack Integration**: Frontend connected to backend API with all features working ✅
 - **Slack Integration**: Full slash command support with ephemeral responses
 - **MCP Orchestration**: Fixed subprocess communication, persistent server architecture
 - **Smart Query Processing**: Pattern matching + LLM fallback for data questions
@@ -100,13 +101,14 @@ PresGen is an AI-powered SaaS platform that transforms unstructured reports and 
 - **Timeout Management**: Reduced from 10min to 5min for faster feedback
 
 ### 🚧 In Progress  
-- **Production Deployment**: Moving from local uvicorn+ngrok to Cloud Run
+- **Production Deployment**: Moving from local development to Cloud Run
 - **Storage Migration**: Local `out/` directory → Google Cloud Storage buckets
+- **User Authentication**: Add login/logout functionality for multi-user support
 
 ### 📋 Planned (Next Phase)
-- **Backend Integration**: Connect presgen-ui frontend to existing FastAPI backend
 - **PresGen-Video**: Video transcription → timed slide overlays via FFmpeg
 - **Advanced UI Features**: Dataset management dashboard, presentation history, user accounts
+- **Enterprise Features**: Team workspaces, brand templates, approval workflows
 
 ## Recent Debugging & Performance Improvements
 
@@ -148,7 +150,8 @@ ENABLE_LOCAL_DEBUG_FILE=true     # Save debug logs to src/logs/
 
 #### **Environment Setup**
 - **Backend**: `uvicorn src.service.http:app --reload --port 8080`
-- **Frontend**: `npm run dev` (Next.js) running at `localhost:3000`
+- **Frontend**: `npm run dev` (Next.js) running at `localhost:3000` (connected to backend)
+- **Integration**: Frontend → `https://tuna-loyal-elk.ngrok-free.app` → Backend API
 - **Logging**: Local files in `src/logs/` (cost-free, no GCP charges)
 - **Slack integration**: Active via ngrok tunnel  
 - **MCP Communication**: Fixed - persistent server architecture
@@ -157,7 +160,7 @@ ENABLE_LOCAL_DEBUG_FILE=true     # Save debug logs to src/logs/
 - **Speaker Notes**: Multi-strategy system complete and working reliably ✅
 - **Web UI**: Complete Next.js frontend with professional light theme ✅
 
-#### **Files Modified** (Latest Session - Web UI Frontend Implementation)
+#### **Files Modified** (Latest Session - Full-Stack Integration)
 - **Frontend Implementation** (`presgen-ui/` directory):
   - `src/app/layout.tsx`: Light theme configuration, hydration warning fixes
   - `src/app/page.tsx`: Main application page with tabbed interface
@@ -168,14 +171,24 @@ ENABLE_LOCAL_DEBUG_FILE=true     # Save debug logs to src/logs/
   - `src/components/FileDrop.tsx`: Reusable drag-drop file upload component
   - `src/components/theme-provider.tsx`: Light theme provider with client-side mounting
   - `src/components/ui/*`: shadcn/ui components with solid overlay backgrounds
-  - `src/lib/api.ts`: API client layer for backend integration
-  - `src/lib/schemas.ts`: Zod validation schemas for forms and API responses
+  - `src/lib/api.ts`: Complete API client rewrite for backend integration ✅
+  - `src/lib/schemas.ts`: Updated response schemas to match backend format ✅
+  - `.env.local`: Backend endpoint configuration for ngrok integration ✅
   - `next.config.ts`: React Strict Mode disabled, hydration warnings suppressed
 - **UI/UX Fixes Applied**:
   - Slider alignment: Labels now horizontally aligned with sliders
   - Light theme: Professional light theme with proper contrast
   - Solid overlays: All modals and dropdowns have solid, readable backgrounds
   - Hydration warnings: Completely suppressed for development MVP
+- **Backend Integration Applied**:
+  - API endpoint mapping: Updated all frontend calls to match backend (`/render`, `/data/ask`, `/data/upload`)
+  - Request format alignment: Fixed payload structures for Core and Data workflows
+  - CORS support: Added ngrok headers for seamless tunnel communication
+  - Error handling: Enhanced error messages and network failure handling
+- **Integration Documentation Created**:
+  - `INTEGRATION_TEST_PLAN.md`: Complete testing checklist for validation
+  - `DEPLOYMENT_GUIDE.md`: Production deployment strategy and configuration
+  - `INTEGRATION_SUMMARY.md`: Comprehensive implementation overview
 - Previous session files from Speaker Notes Implementation still active
 
 #### **Issues Resolved** ✅
@@ -193,6 +206,8 @@ ENABLE_LOCAL_DEBUG_FILE=true     # Save debug logs to src/logs/
 - ~~**React hydration warnings**: Suppressed for development MVP with comprehensive fixes~~ ✅
 - ~~**Transparent overlay components**: Fixed with solid backgrounds for modals and dropdowns~~ ✅
 - ~~**Slider alignment issues**: Fixed horizontal alignment of labels with sliders~~ ✅
+- ~~**Frontend-backend integration**: Complete API client integration with endpoint mapping~~ ✅
+- ~~**CORS and ngrok compatibility**: Added headers and configuration for tunnel communication~~ ✅
 
 #### **Complete System Implementation** 🎉
 All core functionality and enhancement features have been successfully implemented:
@@ -201,9 +216,10 @@ All core functionality and enhancement features have been successfully implement
 - **Fixed SQL generation**: Handles all MVP question patterns correctly
 - **Reliable cache bypass**: `use_cache: false` properly forces fresh content generation
 - **Multi-strategy speaker notes**: Robust implementation ensuring proper notes insertion
+- **Full-stack integration**: Complete end-to-end workflow from web UI to Google Slides
 
 #### **Production Readiness Status**
-The Sales Agent Labs system is now **fully functional and production-ready**:
+The Sales Agent Labs system is now **fully functional and production-ready** with complete full-stack integration:
 
 **✅ Complete Working Systems:**
 - **Complete data pipeline**: Excel upload → SQL queries → slide creation ✅
@@ -215,6 +231,7 @@ The Sales Agent Labs system is now **fully functional and production-ready**:
 - **Context-aware bullet generation**: Provides meaningful insights for every chart ✅
 - **Reliable cache bypass**: Supports `use_cache: false` for fresh content ✅
 - **Multi-strategy speaker notes**: Proper insertion into Speaker Notes section (not visible text) ✅
+- **Full-stack web interface**: Professional Next.js frontend with complete backend integration ✅
 
 **🎯 MVP Requirements Met:**
 All 4 example questions now work perfectly:

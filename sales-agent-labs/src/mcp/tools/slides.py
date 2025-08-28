@@ -295,9 +295,28 @@ def slides_create_tool(params: dict) -> dict:
         jlog(log, logging.INFO, tool="slides.create", event="slides_api_complete", 
              slide_id=slide_id, duration_secs=slide_duration, req_id=p.client_request_id)
     except Exception as e:
+        import traceback
         slide_duration = time.time() - slide_start_time
+        
+        # Enhanced error logging with context
         jlog(log, logging.ERROR, tool="slides.create", event="slides_api_failed", 
-             error=str(e), duration_secs=slide_duration, req_id=p.client_request_id)
+             error=str(e), error_type=type(e).__name__,
+             duration_secs=slide_duration, 
+             presentation_id=pres_id,
+             has_image_url=bool(image_url),
+             bullets_count=len(bullets),
+             script_length=len(script_text),
+             stack_trace=traceback.format_exc(),
+             req_id=p.client_request_id)
+        
+        # Log Google API specific errors with more detail
+        if isinstance(e, HttpError):
+            jlog(log, logging.ERROR, tool="slides.create", event="google_api_error_detail",
+                 status_code=getattr(e, 'status_code', 'unknown'),
+                 reason=getattr(e, 'reason', 'unknown'),
+                 content=getattr(e, 'content', 'unknown')[:500],  # Truncate content
+                 req_id=p.client_request_id)
+        
         raise
     jlog(
         log,

@@ -30,7 +30,6 @@ def _gen_id(prefix: str) -> str:
     # Slides objectIds must be <= 50 chars, letters/numbers/_
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
 
-
 def _load_credentials() -> Credentials:
     SLIDES_SCOPE = "https://www.googleapis.com/auth/presentations"
     DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
@@ -485,11 +484,7 @@ def add_bullets_and_script(
             }
         },
         {
-            "insertText": {
-                "objectId": body_box_id,
-                "insertionIndex": 0,
-                "text": bullet_text,
-            }
+            "insertText": {"objectId": body_box_id, "insertionIndex": 0, "text": bullet_text},
         },
         {
             "createParagraphBullets": {
@@ -710,7 +705,7 @@ def create_main_slide_with_content(
         log.debug("Original image URL: %s", image_url)
         
         # Check if it's a local file path (charts from data pipeline)
-        if image_url.startswith(('/Users', './out', 'out/')):
+        if image_url.startswith(("/Users", "./out", "out/")):
             image_path = pathlib.Path(image_url)
             if image_path.exists():
                 # Try base64 for small files (charts)
@@ -838,11 +833,7 @@ def create_main_slide_with_content(
             }
         },
         {
-            "insertText": {
-                "objectId": body_box,
-                "insertionIndex": 0,
-                "text": bullet_text,
-            }
+            "insertText": {"objectId": body_box, "insertionIndex": 0, "text": bullet_text},
         },
         {
             "createParagraphBullets": {
@@ -937,13 +928,7 @@ def create_main_slide_with_content(
                 slides.presentations().batchUpdate(
                     presentationId=presentation_id,
                     body={
-                        "requests": [{
-                            "insertText": {
-                                "objectId": notes_shape_id,
-                                "insertionIndex": 0,
-                                "text": script,
-                            }
-                        }]
+                        "requests": [{"insertText": {"objectId": notes_shape_id, "insertionIndex": 0, "text": script}}]
                     },
                 ).execute()
                 log.info("Speaker notes set via legacy native API")
@@ -1102,6 +1087,42 @@ def _log_http_error(where: str, e: HttpError) -> None:
     except Exception:
         content = str(e)
     log.error("Google API error in %s | status=%s | content=%s", where, status, content)
+
+def make_drive_file_public(drive_service, file_id: str):
+    """Makes a Drive file publicly readable."""
+    try:
+        # Check existing permissions first
+        permissions = drive_service.permissions().list(fileId=file_id, fields="permissions(id,type,role)").execute()
+        for p in permissions.get("permissions", []):
+            if p.get("type") == "anyone" and p.get("role") == "reader":
+                log.info(f"Drive file {file_id} is already public.")
+                return
+
+        # If not public, add the permission
+        drive_service.permissions().create(
+            fileId=file_id, body={"type": "anyone", "role": "reader"}, fields="id"
+        ).execute()
+        log.info(f"Made Drive file public: {file_id}")
+    except HttpError as e:
+        log.warning(f"Failed to make Drive file public {file_id}: {e}")
+
+def make_drive_file_public(drive_service, file_id: str):
+    """Makes a Drive file publicly readable."""
+    try:
+        # Check existing permissions first
+        permissions = drive_service.permissions().list(fileId=file_id, fields="permissions(id,type,role)").execute()
+        for p in permissions.get("permissions", []):
+            if p.get("type") == "anyone" and p.get("role") == "reader":
+                log.info(f"Drive file {file_id} is already public.")
+                return
+
+        # If not public, add the permission
+        drive_service.permissions().create(
+            fileId=file_id, body={"type": "anyone", "role": "reader"}, fields="id"
+        ).execute()
+        log.info(f"Made Drive file public: {file_id}")
+    except HttpError as e:
+        log.warning(f"Failed to make Drive file public {file_id}: {e}")
 
 
 def _drive_public_download_url(file_id_or_url: str) -> str:

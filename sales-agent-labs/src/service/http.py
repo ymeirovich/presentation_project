@@ -13,6 +13,8 @@ from urllib.parse import parse_qs
 import threading
 import httpx
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 from pathlib import Path
 import re, json, time
@@ -41,6 +43,67 @@ if not SLACK_SIGNING_SECRET and not DEBUG_BYPASS_SLACK_SIG:
     )
 
 app = FastAPI()
+
+# Add CORS middleware to allow frontend requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3003", "http://localhost:3000"],  # Next.js dev servers
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        start_time = time.time()
+        
+        # Log incoming request
+        jlog(
+            log,
+            logging.INFO,
+            event="http_request_start",
+            method=request.method,
+            path=request.url.path,
+            query_params=str(request.query_params),
+            client_host=request.client.host if request.client else "unknown",
+            user_agent=request.headers.get("user-agent", "unknown"),
+        )
+        
+        try:
+            response = await call_next(request)
+            
+            # Log successful response
+            duration = round(time.time() - start_time, 3)
+            jlog(
+                log,
+                logging.INFO,
+                event="http_request_complete",
+                method=request.method,
+                path=request.url.path,
+                status_code=response.status_code,
+                duration_secs=duration,
+            )
+            
+            return response
+            
+        except Exception as e:
+            # Log failed response
+            duration = round(time.time() - start_time, 3)
+            jlog(
+                log,
+                logging.ERROR,
+                event="http_request_failed",
+                method=request.method,
+                path=request.url.path,
+                duration_secs=duration,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            raise
+
+
+app.add_middleware(RequestLoggingMiddleware)
 
 
 # ---------- Helpers ----------
@@ -156,13 +219,118 @@ async def healthz():
 
 @app.post("/render")
 async def render(req: RenderRequest):
-    res = orchestrate(
-        req.report_text,
-        client_request_id=req.request_id,
-        use_cache=req.use_cache,
-        slide_count=req.slides,
-    )  # <-- CHANGED
-    return {"ok": True, "url": res.get("url")}
+    start_time = time.time()
+    request_info = {
+        "request_id": req.request_id,
+        "text_length": len(req.report_text) if req.report_text else 0,
+        "slides": req.slides,
+        "use_cache": req.use_cache,
+        "is_file_upload": len(req.report_text) > 10000 if req.report_text else False  # Heuristic for file uploads
+    }
+    
+    jlog(
+        log,
+        logging.INFO,
+        event="render_request_start",
+        **request_info
+    )
+    
+    try:
+        # Validate report_text is not empty
+        if not req.report_text or not req.report_text.strip():
+            jlog(log, logging.ERROR, event="render_validation_failed", error="empty_text", **request_info)
+            raise HTTPException(status_code=400, detail="report_text cannot be empty")
+        
+        jlog(log, logging.INFO, event="render_calling_orchestrate", **request_info)
+        
+        res = orchestrate(
+            req.report_text,
+            client_request_id=req.request_id,
+            use_cache=req.use_cache,
+            slide_count=req.slides,
+        )
+        
+        orchestrate_time = time.time()
+        jlog(
+            log,
+            logging.INFO, 
+            event="render_orchestrate_complete",
+            orchestrate_duration_secs=round(orchestrate_time - start_time, 2),
+            result_keys=list(res.keys()) if res else [],
+            has_url=bool(res.get("url")),
+            **request_info
+        )
+        
+        # Validate response has required fields
+        if not res.get("url"):
+            jlog(log, logging.ERROR, event="render_no_url", orchestrate_result=res, **request_info)
+            raise HTTPException(status_code=500, detail="Presentation was created but no URL returned")
+        
+        # Build response payload
+        response_payload = {
+            "ok": True,
+            "url": res.get("url"),
+            "presentation_id": res.get("presentation_id"),
+            "created_slides": res.get("created_slides"),
+            "first_slide_id": res.get("first_slide_id"),
+        }
+        
+        total_time = time.time()
+        jlog(
+            log,
+            logging.INFO,
+            event="render_success",
+            total_duration_secs=round(total_time - start_time, 2),
+            url=res.get("url"),
+            created_slides=res.get("created_slides"),
+            **request_info
+        )
+        
+        return response_payload
+        
+    except HTTPException as e:
+        error_time = time.time()
+        jlog(
+            log,
+            logging.ERROR,
+            event="render_http_exception",
+            duration_secs=round(error_time - start_time, 2),
+            status_code=e.status_code,
+            detail=e.detail,
+            **request_info
+        )
+        raise
+    except Exception as e:
+        error_time = time.time()
+        # Enhanced error logging with stack trace and more context
+        import traceback
+        stack_trace = traceback.format_exc()
+        
+        jlog(
+            log,
+            logging.ERROR,
+            event="render_exception",
+            duration_secs=round(error_time - start_time, 2),
+            error=str(e),
+            error_type=type(e).__name__,
+            error_module=getattr(type(e), '__module__', 'unknown'),
+            stack_trace=stack_trace,
+            **request_info
+        )
+        
+        # Log additional context based on error type
+        if "orchestrate" in str(e).lower() or hasattr(e, '__module__') and 'orchestrator' in str(getattr(e, '__module__', '')):
+            jlog(log, logging.ERROR, event="render_orchestrator_error_context", 
+                 error=str(e), **request_info)
+        elif "slides" in str(e).lower() or "presentation" in str(e).lower():
+            jlog(log, logging.ERROR, event="render_slides_error_context", 
+                 error=str(e), **request_info)
+        elif "timeout" in str(e).lower():
+            jlog(log, logging.ERROR, event="render_timeout_error_context", 
+                 error=str(e), **request_info)
+        
+        log.error(f"Render request failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @app.post("/slack/command")
@@ -288,45 +456,69 @@ class DataAsk(BaseModel):
 
 @app.post("/data/ask")
 async def data_ask(req: DataAsk):
-    ds = req.dataset_id or resolve_dataset(req.dataset_hint or "latest")
-    if not ds:
-        raise HTTPException(
-            status_code=400,
-            detail="No dataset found. Upload a file or specify dataset_id/dataset_hint.",
-        )
-    # inside /data/ask, before calling orchestrate_mixed
-    jlog(
-        log,
-        logging.INFO,
-        event="data_ask_begin",
-        dataset_id=ds,
-        sheet=req.sheet,
-        slides=req.slides,
-        n_questions=len(req.questions),
-        use_cache=req.use_cache,
-    )
-    res = orchestrate_mixed(
-        req.report_text,
-        slide_count=req.slides,
-        dataset_id=ds,
-        data_questions=req.questions,
-        sheet=req.sheet,
-        use_cache=req.use_cache,
-    )
-    jlog(
-        log,
-        logging.INFO,
-        event="data_ask_complete",
-        dataset_id=ds,
-        created_slides=res.get("created_slides"),
-        url=res.get("url"),
-    )
-    return {
-        "ok": True,
-        "url": res.get("url"),
-        "dataset_id": ds,
-        "created_slides": res.get("created_slides"),
+    start_time = time.time()
+    request_info = {
+        "dataset_hint": req.dataset_hint,
+        "sheet": req.sheet,
+        "slides": req.slides,
+        "n_questions": len(req.questions),
+        "use_cache": req.use_cache
     }
+    
+    jlog(log, logging.INFO, event="data_ask_start", **request_info)
+    
+    try:
+        ds = req.dataset_id or resolve_dataset(req.dataset_hint or "latest")
+        if not ds:
+            jlog(log, logging.ERROR, event="data_ask_no_dataset", **request_info)
+            raise HTTPException(
+                status_code=400,
+                detail="No dataset found. Upload a file or specify dataset_id/dataset_hint.",
+            )
+        
+        request_info["dataset_id"] = ds
+        jlog(log, logging.INFO, event="data_ask_dataset_resolved", **request_info)
+        
+        # Call orchestrate_mixed with enhanced error context
+        res = orchestrate_mixed(
+            req.report_text,
+            slide_count=req.slides,
+            dataset_id=ds,
+            data_questions=req.questions,
+            sheet=req.sheet,
+            use_cache=req.use_cache,
+        )
+        
+        # Validate response
+        if not res.get("url"):
+            jlog(log, logging.ERROR, event="data_ask_no_url", 
+                 orchestrate_result=res, **request_info)
+            raise HTTPException(status_code=500, detail="Presentation was created but no URL returned")
+        
+        total_time = time.time() - start_time
+        jlog(log, logging.INFO, event="data_ask_success", 
+             duration_secs=round(total_time, 2),
+             created_slides=res.get("created_slides"),
+             url=res.get("url"), **request_info)
+        
+        return {
+            "ok": True,
+            "url": res.get("url"),
+            "dataset_id": ds,
+            "created_slides": res.get("created_slides"),
+        }
+        
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions as-is
+    except Exception as e:
+        import traceback
+        error_time = time.time() - start_time
+        jlog(log, logging.ERROR, event="data_ask_exception", 
+             error=str(e), error_type=type(e).__name__, 
+             duration_secs=round(error_time, 2),
+             stack_trace=traceback.format_exc(), **request_info)
+        log.error(f"Data ask request failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @app.post("/slack/events")
@@ -419,10 +611,56 @@ def parse_mixed_command(text: str) -> dict:
 
 @app.post("/data/upload")
 async def data_upload(file: UploadFile = File(...)):
-    raw_dir = pathlib.Path("out/data/tmp")
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    raw_path = raw_dir / file.filename
-    with raw_path.open("wb") as f:
-        f.write(await file.read())
-    info = ingest_file(raw_path, original_name=file.filename)
-    return info
+    start_time = time.time()
+    upload_info = {
+        "filename": file.filename,
+        "content_type": file.content_type,
+        "size_bytes": 0
+    }
+    
+    jlog(log, logging.INFO, event="data_upload_start", **upload_info)
+    
+    try:
+        # Validate file
+        if not file.filename:
+            jlog(log, logging.ERROR, event="data_upload_no_filename", **upload_info)
+            raise HTTPException(status_code=400, detail="No filename provided")
+            
+        raw_dir = pathlib.Path("out/data/tmp")
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        raw_path = raw_dir / file.filename
+        
+        # Read and save file
+        file_content = await file.read()
+        upload_info["size_bytes"] = len(file_content)
+        
+        jlog(log, logging.INFO, event="data_upload_file_read", **upload_info)
+        
+        with raw_path.open("wb") as f:
+            f.write(file_content)
+            
+        jlog(log, logging.INFO, event="data_upload_file_saved", 
+             path=str(raw_path), **upload_info)
+        
+        # Process file
+        info = ingest_file(raw_path, original_name=file.filename)
+        
+        total_time = time.time() - start_time
+        jlog(log, logging.INFO, event="data_upload_success", 
+             duration_secs=round(total_time, 2), 
+             dataset_id=info.get("dataset_id"), 
+             sheets=info.get("sheets", []), **upload_info)
+        
+        return info
+        
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions as-is
+    except Exception as e:
+        import traceback
+        error_time = time.time() - start_time
+        jlog(log, logging.ERROR, event="data_upload_exception", 
+             error=str(e), error_type=type(e).__name__, 
+             duration_secs=round(error_time, 2),
+             stack_trace=traceback.format_exc(), **upload_info)
+        log.error(f"Data upload failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")

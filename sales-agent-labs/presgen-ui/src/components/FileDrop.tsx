@@ -147,7 +147,7 @@ export function FileDrop({
               </p>
               
               <p className="text-xs text-muted-foreground">
-                Maximum file size: {maxSizeMB}MB
+                Supports .txt, .pdf, .docx files up to {maxSizeMB}MB
               </p>
             </div>
 

@@ -3,6 +3,14 @@ import json, logging, subprocess, sys, threading, queue, time, uuid
 from typing import Any, Dict, Optional
 
 log = logging.getLogger("mcp_lab.rpc_client")
+
+
+class CustomJSONEncoder(json.JSONEncoder):
+    def default(self, o: Any) -> Any:
+        if isinstance(o, bytes):
+            log.warning("Found bytes in JSON payload, replacing with None.")
+            return None
+        return super().default(o)
 DEFAULT_TIMEOUT_SECS = 180
 METHOD_TIMEOUTS = {
     "llm.summarize": 120,
@@ -188,14 +196,14 @@ class MCPClient:
         payload = {"jsonrpc": "2.0", "id": rid, "method": method, "params": params}
         try:
             print(
-                json.dumps(payload, ensure_ascii=False), file=self._p.stdin, flush=True
+                json.dumps(payload, ensure_ascii=False, cls=CustomJSONEncoder), file=self._p.stdin, flush=True
             )
         except (BrokenPipeError, ValueError) as e:  # ValueError: I/O on closed file
             # server likely crashed; restart then retry ONCE
             log.warning("MCP subprocess communication failed (%s), restarting...", e)
             self._ensure_alive()
             print(
-                json.dumps(payload, ensure_ascii=False), file=self._p.stdin, flush=True
+                json.dumps(payload, ensure_ascii=False, cls=CustomJSONEncoder), file=self._p.stdin, flush=True
             )
 
         deadline = time.time() + timeout
@@ -208,9 +216,21 @@ class MCPClient:
             except queue.Empty:
                 # Check if subprocess is still alive
                 if self._p and self._p.poll() is not None:
-                    log.error("MCP subprocess died during %s call (exit code: %s)", 
-                             method, self._p.returncode)
-                    raise RuntimeError(f"MCP subprocess died during {method} call")
+                    # Capture stderr output if available
+                    stderr_output = ""
+                    if self._p.stderr:
+                        try:
+                            stderr_output = self._p.stderr.read()
+                        except:
+                            stderr_output = "<unable to read stderr>"
+                    
+                    log.error(
+                        "MCP subprocess died during %s call (exit code: %s, stderr: %s)", 
+                        method, self._p.returncode, stderr_output
+                    )
+                    raise RuntimeError(
+                        f"MCP subprocess died during {method} call (exit code: {self._p.returncode})"
+                    )
                 
                 # Log progress every 30 seconds for long operations
                 current_time = time.time()
@@ -234,7 +254,16 @@ class MCPClient:
                 continue
                 
             if "error" in resp:
-                raise ToolError(resp["error"])
+                error_info = resp["error"]
+                # Enhanced error logging for tool errors
+                log.error(
+                    "MCP tool error for %s: %s (code: %s, data: %s)",
+                    method,
+                    error_info.get("message", "<no message>"),
+                    error_info.get("code", "<no code>"),
+                    error_info.get("data", "<no data>")
+                )
+                raise ToolError(error_info)
             return resp.get("result", {})
         
         total_elapsed = time.time() - start_time

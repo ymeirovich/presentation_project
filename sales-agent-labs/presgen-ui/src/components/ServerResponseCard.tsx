@@ -18,7 +18,8 @@ import { toast } from "sonner"
 export interface ServerResponse {
   ok: boolean
   message?: string
-  slides_url?: string
+  url?: string  // Backend returns 'url' field, not 'slides_url'
+  slides_url?: string  // Keep for backward compatibility
   error?: string
   // Additional response data for detailed view
   [key: string]: any
@@ -56,8 +57,9 @@ export function ServerResponseCard({ response, title = "Server Response" }: Serv
   }
 
   const openSlides = () => {
-    if (response.slides_url) {
-      window.open(response.slides_url, '_blank')
+    const slidesUrl = response.url || response.slides_url
+    if (slidesUrl) {
+      window.open(slidesUrl, '_blank')
     }
   }
 
@@ -66,6 +68,7 @@ export function ServerResponseCard({ response, title = "Server Response" }: Serv
   delete detailsData.ok
   delete detailsData.message
   delete detailsData.error
+  delete detailsData.url
   delete detailsData.slides_url
 
   const hasDetails = Object.keys(detailsData).length > 0
@@ -127,7 +130,7 @@ export function ServerResponseCard({ response, title = "Server Response" }: Serv
         </div>
 
         {/* Slides link */}
-        {isSuccess && response.slides_url && (
+        {isSuccess && (response.url || response.slides_url) && (
           <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
             <CheckCircle2 className="w-4 h-4 text-green-600" />
             <span className="text-sm text-green-800 dark:text-green-200 flex-1">

@@ -80,24 +80,26 @@ export default function Home() {
       
       <Header>
         <TooltipProvider>
-          <SegmentedTabs
-            tabs={TABS.map(tab => ({
-              ...tab,
-              label: tab.disabled && tab.tooltip ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span>{tab.label}</span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{tab.tooltip}</p>
-                  </TooltipContent>
-                </Tooltip>
-              ) : tab.label
-            }))}
-            value={activeTab}
-            onValueChange={setActiveTab}
-            className="w-auto"
-          />
+          <div className="flex justify-center w-full">
+            <SegmentedTabs
+              tabs={TABS.map(tab => ({
+                ...tab,
+                label: tab.disabled && tab.tooltip ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>{tab.label}</span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{tab.tooltip}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                ) : tab.label
+              }))}
+              value={activeTab}
+              onValueChange={setActiveTab}
+              className="w-auto"
+            />
+          </div>
         </TooltipProvider>
       </Header>
 
