@@ -1,0 +1,103 @@
+{
+  "421e51104b321033376ea6733bd8a5b6": {
+    "data": {
+      "optimal_command": "ffmpeg -i {input} -vn -acodec aac -ab 192k {output}",
+      "best_practices": [
+        "Use AAC codec for best compatibility",
+        "192k bitrate provides good quality/size balance",
+        "Always include -vn to disable video stream"
+      ],
+      "current_flags": {
+        "-vn": "Disable video recording",
+        "-acodec aac": "Use AAC audio codec",
+        "-ab 192k": "Set audio bitrate to 192kbps"
+      },
+      "performance_tips": "Use hardware acceleration with -hwaccel auto for speed"
+    },
+    "cached_at": 1756910324.845963,
+    "library": "ffmpeg",
+    "topic": "audio_extraction"
+  },
+  "d3c90a780fef6469d912b259d247613d": {
+    "data": {
+      "library": "ffmpeg",
+      "topic": "video_composition",
+      "status": "simulated",
+      "message": "Simulated documentation for ffmpeg:video_composition",
+      "best_practices": [
+        "Use current ffmpeg API patterns",
+        "Follow official documentation",
+        "Optimize for performance in demo scenarios"
+      ]
+    },
+    "cached_at": 1756910324.947655,
+    "library": "ffmpeg",
+    "topic": "video_composition"
+  },
+  "f92fe81cf1f8251d21f13ad228e82e84": {
+    "data": {
+      "optimal_method": "cv2.CascadeClassifier with Haar cascades",
+      "current_api": "cv2.CascadeClassifier.detectMultiScale()",
+      "best_practices": [
+        "Use grayscale images for faster processing",
+        "Scale factor 1.1-1.3 for good accuracy/speed balance",
+        "minNeighbors=5 reduces false positives"
+      ],
+      "performance_settings": {
+        "scaleFactor": 1.1,
+        "minNeighbors": 5,
+        "minSize": "(30, 30)"
+      },
+      "alternative": "Consider MediaPipe for better accuracy"
+    },
+    "cached_at": 1756910324.947982,
+    "library": "opencv-python",
+    "topic": "face_detection"
+  },
+  "0e2b6ddf41b9da17cd5835d2fa094ef9": {
+    "data": {
+      "optimal_model": "base",
+      "current_api": "whisper.load_model().transcribe()",
+      "best_practices": [
+        "Use 'base' model for best speed/quality balance",
+        "Enable word-level timestamps with word_timestamps=True",
+        "Set language explicitly if known for speed"
+      ],
+      "performance_settings": {
+        "model": "base",
+        "language": "en",
+        "word_timestamps": true,
+        "fp16": true
+      },
+      "optimization": "Use GPU with device='cuda' if available"
+    },
+    "cached_at": 1756910324.948151,
+    "library": "whisper",
+    "topic": "transcription"
+  },
+  "54ddc5436ab31b57b16a98c387103cb7": {
+    "data": {
+      "optimal_method": "page.screenshot() with PNG format",
+      "current_api": "page.screenshot(path, type='png')",
+      "best_practices": [
+        "Use PNG format for text/graphics quality",
+        "Set explicit viewport for consistent sizing",
+        "Wait for network idle for dynamic content"
+      ],
+      "performance_settings": {
+        "type": "png",
+        "full_page": false,
+        "clip": {
+          "x": 0,
+          "y": 0,
+          "width": 1920,
+          "height": 1080
+        }
+      },
+      "optimization": "Use headless mode for speed"
+    },
+    "cached_at": 1756910324.948304,
+    "library": "playwright",
+    "topic": "screenshot"
+  }
+}

@@ -5,20 +5,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ### Essential Commands
-- **Install dependencies**: `pip install -r requirements.txt`
+- **Install dependencies**: `pip3 install -r requirements.txt`
 - **Format code**: `make fmt` (uses black)
 - **Lint code**: `make lint` (uses flake8)
 - **Run unit tests**: `make smoke-test` (pytest on cache unit tests)
 - **Run live integration tests**: `make live-smoke` (requires GCP credentials)
 - **Start development server**: `uvicorn src.service.http:app --reload --port 8080`
 
+### IMPORTANT: Python Command Usage
+- **Always use `python3` instead of `python`** for all CLI commands
+- **Always use `pip3` instead of `pip`** for package management
+- This ensures compatibility across different system configurations
+
 ### Testing Commands
-- **Individual test files**: `python -m pytest tests/test_orchestrator_live.py` or `python -m pytest tests/test_cache_unit.py`
-- **With environment flag**: `RUN_SMOKE=1 python -m pytest tests/test_orchestrator_live.py`
+- **Individual test files**: `python3 -m pytest tests/test_orchestrator_live.py` or `python3 -m pytest tests/test_cache_unit.py`
+- **With environment flag**: `RUN_SMOKE=1 python3 -m pytest tests/test_orchestrator_live.py`
 
 ### Main Entry Points
-- **CLI tool**: `python -m src.mcp_lab examples/report_demo.txt`
-- **With options**: `python -m src.mcp_lab examples/report_demo.txt --slides 3 --no-cache`
+- **CLI tool**: `python3 -m src.mcp_lab examples/report_demo.txt`
+- **With options**: `python3 -m src.mcp_lab examples/report_demo.txt --slides 3 --no-cache`
 - **Batch processing**: `make run-batch`
 - **Orchestrator demo**: `make run-orchestrator`
 

@@ -86,6 +86,18 @@ The PresGen MVP is now a **fully functional, production-ready system** with:
 - **Comprehensive Logging**: Full request tracing with structured JSON logs
 - **Security**: Input validation, file type restrictions, size limits
 
+### 🎬 **NEW: PresGen-Video (In Development)**
+**Video → Timed Slides** workflow with parallel processing architecture:
+
+- **🚀 Performance**: <2 minute processing with parallel subagents
+- **💰 Cost Optimized**: $0 demo cost with local-first processing  
+- **🎭 Professional Output**: 50/50 layout with face detection + slide overlay
+- **🔧 Modern Stack**: Context7 + Playwright MCP + existing MCP infrastructure
+- **📋 Status**: Planning complete, implementation ready
+- **⏱️ Timeline**: 5-day modular sprint
+
+[📖 View Video Implementation Plan](presgen-video/Implementation-Status.md) | [📑 Technical PRDs](presgen-video/)
+
 ## 📋 Prerequisites
 
 - Python 3.8+

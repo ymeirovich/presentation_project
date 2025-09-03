@@ -8,6 +8,7 @@ import pathlib
 import time
 import logging
 import threading
+import uuid
 from typing import Optional
 from urllib.parse import parse_qs
 import threading
@@ -24,6 +25,7 @@ from dotenv import load_dotenv
 from src.data.ingest import ingest_file
 from src.data.catalog import resolve_dataset
 from typing import List, Dict, Any
+import asyncio
 
 load_dotenv()
 
@@ -453,6 +455,290 @@ class DataAsk(BaseModel):
     slides: int = 1
     use_cache: bool = True
 
+
+# Video Processing Models
+class VideoUploadResponse(BaseModel):
+    job_id: str
+    status: str
+    message: str
+    upload_time: float
+
+
+class VideoJobStatus(BaseModel):
+    job_id: str
+    status: str
+    progress: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+    created_at: float
+    updated_at: float
+
+
+class VideoProcessingResult(BaseModel):
+    job_id: str
+    status: str
+    download_url: Optional[str] = None
+    processing_time: Optional[float] = None
+    phases: Optional[Dict[str, float]] = None
+
+
+# ---------- Video Processing Routes ----------
+
+# Global job storage (in production, use Redis or database)
+video_jobs: Dict[str, Dict[str, Any]] = {}
+
+def create_video_job(job_id: str, video_path: str) -> Dict[str, Any]:
+    """Create a new video processing job"""
+    job = {
+        "job_id": job_id,
+        "status": "uploaded",
+        "video_path": video_path,
+        "created_at": time.time(),
+        "updated_at": time.time(),
+        "progress": {},
+        "error": None,
+        "phases": {}
+    }
+    video_jobs[job_id] = job
+    return job
+
+def update_video_job(job_id: str, **updates) -> Dict[str, Any]:
+    """Update video job with new data"""
+    if job_id not in video_jobs:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    
+    job = video_jobs[job_id]
+    job.update(updates)
+    job["updated_at"] = time.time()
+    
+    jlog(log, logging.INFO, 
+         event="video_job_updated",
+         job_id=job_id,
+         status=job.get("status"),
+         updates=list(updates.keys()))
+    
+    return job
+
+@app.post("/video/upload", response_model=VideoUploadResponse)
+async def video_upload(file: UploadFile = File(...)):
+    """Upload video file for processing"""
+    start_time = time.time()
+    job_id = str(uuid.uuid4())
+    
+    upload_info = {
+        "job_id": job_id,
+        "filename": file.filename,
+        "content_type": file.content_type,
+        "size_bytes": 0
+    }
+    
+    jlog(log, logging.INFO, event="video_upload_start", **upload_info)
+    
+    try:
+        # Validate file
+        if not file.filename:
+            jlog(log, logging.ERROR, event="video_upload_no_filename", **upload_info)
+            raise HTTPException(status_code=400, detail="No filename provided")
+        
+        # Check file extension
+        valid_extensions = {'.mp4', '.mov', '.avi', '.mkv'}
+        file_ext = pathlib.Path(file.filename).suffix.lower()
+        if file_ext not in valid_extensions:
+            jlog(log, logging.ERROR, event="video_upload_invalid_format", 
+                 extension=file_ext, **upload_info)
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Unsupported video format: {file_ext}. Supported: {', '.join(valid_extensions)}"
+            )
+        
+        # Create job directory
+        job_dir = pathlib.Path(f"/tmp/jobs/{job_id}")
+        job_dir.mkdir(parents=True, exist_ok=True)
+        video_path = job_dir / "raw_video.mp4"
+        
+        # Read and save file
+        file_content = await file.read()
+        upload_info["size_bytes"] = len(file_content)
+        
+        # Check file size (max 200MB as per PRD)
+        max_size = 200 * 1024 * 1024  # 200MB
+        if upload_info["size_bytes"] > max_size:
+            jlog(log, logging.ERROR, event="video_upload_too_large", **upload_info)
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large: {upload_info['size_bytes']/1024/1024:.1f}MB. Max: 200MB"
+            )
+        
+        jlog(log, logging.INFO, event="video_upload_file_read", **upload_info)
+        
+        # Save video file
+        with video_path.open("wb") as f:
+            f.write(file_content)
+        
+        # Create job record
+        job = create_video_job(job_id, str(video_path))
+        
+        upload_time = time.time() - start_time
+        
+        jlog(log, logging.INFO, event="video_upload_success", 
+             duration_secs=round(upload_time, 2), 
+             job_path=str(video_path), **upload_info)
+        
+        return VideoUploadResponse(
+            job_id=job_id,
+            status="uploaded",
+            message="Video uploaded successfully. Ready for processing.",
+            upload_time=upload_time
+        )
+        
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions as-is
+    except Exception as e:
+        import traceback
+        error_time = time.time() - start_time
+        jlog(log, logging.ERROR, event="video_upload_exception", 
+             error=str(e), error_type=type(e).__name__, 
+             duration_secs=round(error_time, 2),
+             stack_trace=traceback.format_exc(), **upload_info)
+        log.error(f"Video upload failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Video upload failed: {str(e)}")
+
+@app.get("/video/status/{job_id}", response_model=VideoJobStatus)
+async def video_status(job_id: str):
+    """Get video processing job status"""
+    if job_id not in video_jobs:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    
+    job = video_jobs[job_id]
+    
+    return VideoJobStatus(
+        job_id=job_id,
+        status=job["status"],
+        progress=job.get("progress"),
+        error=job.get("error"),
+        created_at=job["created_at"],
+        updated_at=job["updated_at"]
+    )
+
+@app.post("/video/process/{job_id}")
+async def video_process(job_id: str):
+    """Start video processing with Phase 1 parallel agents"""
+    if job_id not in video_jobs:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    
+    job = video_jobs[job_id]
+    if job["status"] != "uploaded":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Job {job_id} is not ready for processing. Status: {job['status']}"
+        )
+    
+    # Update job status to processing
+    update_video_job(job_id, status="processing", progress={"phase": "starting"})
+    
+    jlog(log, logging.INFO, event="video_processing_started", job_id=job_id)
+    
+    try:
+        # Import and initialize parallel orchestrator
+        from src.mcp.tools.video_orchestrator import ParallelVideoOrchestrator
+        
+        orchestrator = ParallelVideoOrchestrator(job_id)
+        
+        # Execute Phase 1 parallel processing
+        jlog(log, logging.INFO, event="phase1_starting", job_id=job_id)
+        update_video_job(job_id, progress={"phase": "phase1", "status": "processing"})
+        
+        result = await orchestrator.phase1_parallel_processing(job["video_path"])
+        
+        if result.success:
+            # Update job with Phase 1 results
+            update_video_job(
+                job_id,
+                status="phase1_complete",
+                progress={
+                    "phase": "phase1_complete",
+                    "processing_time": result.processing_time,
+                    "audio_success": result.audio_result.success,
+                    "video_success": result.video_result.success,
+                    "audio_duration": result.audio_result.duration,
+                    "video_confidence": result.video_result.confidence_score
+                },
+                phases={"phase1": result.processing_time}
+            )
+            
+            jlog(log, logging.INFO, 
+                 event="phase1_success",
+                 job_id=job_id,
+                 processing_time=result.processing_time,
+                 target_met=result.processing_time < 30)
+            
+            return {
+                "job_id": job_id,
+                "status": "phase1_complete",
+                "message": "Phase 1 parallel processing completed successfully",
+                "processing_time": result.processing_time,
+                "target_met": result.processing_time < 30,
+                "next_phase": "Phase 2 (transcription + summarization) - Module 3 implementation pending"
+            }
+        else:
+            # Handle Phase 1 failure
+            update_video_job(
+                job_id,
+                status="failed",
+                error=result.error,
+                progress={"phase": "phase1_failed", "error": result.error}
+            )
+            
+            jlog(log, logging.ERROR,
+                 event="phase1_failed",
+                 job_id=job_id,
+                 error=result.error,
+                 processing_time=result.processing_time)
+            
+            raise HTTPException(
+                status_code=500,
+                detail=f"Phase 1 processing failed: {result.error}"
+            )
+            
+    except Exception as e:
+        # Handle orchestration errors
+        error_msg = f"Video processing failed: {str(e)}"
+        
+        update_video_job(
+            job_id,
+            status="failed", 
+            error=error_msg,
+            progress={"phase": "orchestration_failed", "error": error_msg}
+        )
+        
+        jlog(log, logging.ERROR,
+             event="video_processing_exception",
+             job_id=job_id,
+             error=error_msg)
+        
+        raise HTTPException(status_code=500, detail=error_msg)
+
+@app.get("/video/result/{job_id}")
+async def video_result(job_id: str):
+    """Get video processing result (placeholder for Module 5)"""
+    if job_id not in video_jobs:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    
+    job = video_jobs[job_id]
+    
+    if job["status"] == "processing":
+        return {"job_id": job_id, "status": "processing", "message": "Still processing..."}
+    elif job["status"] == "failed":
+        return {"job_id": job_id, "status": "failed", "error": job.get("error")}
+    elif job["status"] == "completed":
+        # TODO: Module 5 will implement actual download functionality
+        return {
+            "job_id": job_id, 
+            "status": "completed",
+            "download_url": f"/video/download/{job_id}",
+            "message": "Processing complete (download implementation pending)"
+        }
+    else:
+        return {"job_id": job_id, "status": job["status"], "message": "Ready for processing"}
 
 @app.post("/data/ask")
 async def data_ask(req: DataAsk):
