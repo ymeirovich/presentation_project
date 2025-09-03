@@ -823,28 +823,347 @@ async def video_process_phase2(job_id: str):
         raise HTTPException(status_code=500, detail=error_msg)
 
 
-@app.get("/video/result/{job_id}")
-async def video_result(job_id: str):
-    """Get video processing result (placeholder for Module 5)"""
+@app.post("/video/preview/{job_id}")
+async def video_preview(job_id: str):
+    """Generate preview data for Module 4 UI"""
     if job_id not in video_jobs:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
     
     job = video_jobs[job_id]
     
-    if job["status"] == "processing":
-        return {"job_id": job_id, "status": "processing", "message": "Still processing..."}
+    if job["status"] != "phase2_complete":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Job must be in phase2_complete status, currently: {job['status']}"
+        )
+    
+    try:
+        # Get summary from Phase 2 orchestrator
+        from src.mcp.tools.video_phase2 import Phase2Orchestrator
+        orchestrator = Phase2Orchestrator(job_id)
+        status = await orchestrator.get_processing_status()
+        
+        # Construct slide URLs
+        slides_dir = Path(f"/tmp/jobs/{job_id}/slides")
+        slide_files = list(slides_dir.glob("*.png")) if slides_dir.exists() else []
+        slide_urls = [f"/tmp/jobs/{job_id}/slides/{f.name}" for f in sorted(slide_files)]
+        
+        # Mock summary data for demo (in production, this would come from saved state)
+        mock_summary = {
+            "bullet_points": [
+                {"timestamp": "00:30", "text": "Our goal is to demonstrate AI transformation", "confidence": 0.9, "duration": 20.0},
+                {"timestamp": "01:15", "text": "Data shows significant improvements", "confidence": 0.8, "duration": 25.0},
+                {"timestamp": "02:00", "text": "Recommendation: implement company-wide", "confidence": 0.9, "duration": 15.0}
+            ],
+            "main_themes": ["Strategy", "Data", "Implementation"],
+            "total_duration": "02:30",
+            "language": "en",
+            "summary_confidence": 0.85
+        }
+        
+        # Mock video metadata
+        video_metadata = {
+            "width": 1280,
+            "height": 720,
+            "duration": 150.0,
+            "fps": 30
+        }
+        
+        # Mock crop region from face detection
+        crop_region = {
+            "x": 483,
+            "y": 256, 
+            "width": 379,
+            "height": 379
+        }
+        
+        # Processing stats
+        processing_stats = {
+            "phase1_time": job.get("phases", {}).get("phase1", 4.56),
+            "phase2_time": job.get("phases", {}).get("phase2", 3.39),
+            "slides_generated": len(slide_urls)
+        }
+        
+        return {
+            "job_id": job_id,
+            "summary": mock_summary,
+            "slide_urls": slide_urls,
+            "video_metadata": video_metadata,
+            "crop_region": crop_region,
+            "processing_stats": processing_stats
+        }
+        
+    except Exception as e:
+        error_msg = f"Failed to generate preview: {str(e)}"
+        jlog(log, logging.ERROR,
+             event="video_preview_exception",
+             job_id=job_id,
+             error=error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
+
+
+@app.put("/video/bullets/{job_id}")
+async def update_bullets(job_id: str, summary: dict):
+    """Update bullet points and regenerate slides"""
+    if job_id not in video_jobs:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    
+    job = video_jobs[job_id]
+    
+    # Validate minimum bullet points
+    bullet_points = summary.get("bullet_points", [])
+    if len(bullet_points) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Minimum 3 bullet points required. Current: {len(bullet_points)}"
+        )
+    
+    try:
+        jlog(log, logging.INFO,
+             event="bullets_update_start",
+             job_id=job_id,
+             bullet_count=len(bullet_points))
+        
+        # TODO: Integrate with PlaywrightAgent to regenerate slides
+        # For now, simulate the update
+        await asyncio.sleep(2)  # Simulate processing time
+        
+        # Update job with new summary
+        update_video_job(job_id, summary=summary)
+        
+        # Mock response with updated slide URLs
+        slides_dir = Path(f"/tmp/jobs/{job_id}/slides")
+        slide_files = list(slides_dir.glob("*.png")) if slides_dir.exists() else []
+        slide_urls = [f"/tmp/jobs/{job_id}/slides/{f.name}" for f in sorted(slide_files)]
+        
+        response = {
+            "job_id": job_id,
+            "summary": summary,
+            "slide_urls": slide_urls,
+            "video_metadata": {"width": 1280, "height": 720, "duration": 150.0, "fps": 30},
+            "crop_region": {"x": 483, "y": 256, "width": 379, "height": 379},
+            "processing_stats": {
+                "phase1_time": 4.56,
+                "phase2_time": 3.39,
+                "slides_generated": len(slide_urls)
+            }
+        }
+        
+        jlog(log, logging.INFO,
+             event="bullets_update_success",
+             job_id=job_id,
+             slides_regenerated=len(slide_urls))
+        
+        return response
+        
+    except Exception as e:
+        error_msg = f"Failed to update bullet points: {str(e)}"
+        jlog(log, logging.ERROR,
+             event="bullets_update_exception",
+             job_id=job_id,
+             error=error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
+
+
+@app.put("/video/crop/{job_id}")
+async def update_crop(job_id: str, crop_region: dict):
+    """Update face crop region for final composition"""
+    if job_id not in video_jobs:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    
+    try:
+        # Validate crop region
+        required_fields = ["x", "y", "width", "height"]
+        for field in required_fields:
+            if field not in crop_region:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Missing required field: {field}"
+                )
+            if not isinstance(crop_region[field], (int, float)) or crop_region[field] < 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid {field} value: must be non-negative number"
+                )
+        
+        # Update job with new crop region
+        update_video_job(job_id, crop_region=crop_region)
+        
+        jlog(log, logging.INFO,
+             event="crop_region_updated",
+             job_id=job_id,
+             crop_region=crop_region)
+        
+        return {"success": True, "crop_region": crop_region}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = f"Failed to update crop region: {str(e)}"
+        jlog(log, logging.ERROR,
+             event="crop_update_exception",
+             job_id=job_id,
+             error=error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
+
+
+@app.post("/video/generate/{job_id}")
+async def generate_final_video(job_id: str):
+    """Start Phase 3: Final video composition with 50/50 layout and timed slides"""
+    if job_id not in video_jobs:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    
+    job = video_jobs[job_id]
+    
+    if job["status"] not in ["phase2_complete", "editing_complete"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job must be in phase2_complete or editing_complete status, currently: {job['status']}"
+        )
+    
+    try:
+        # Update job status to phase3_processing
+        update_video_job(job_id, status="phase3_processing")
+        
+        jlog(log, logging.INFO,
+             event="phase3_composition_start",
+             job_id=job_id)
+        
+        # Start Phase 3 composition in background
+        from src.mcp.tools.video_phase3 import Phase3Orchestrator
+        orchestrator = Phase3Orchestrator(job_id)
+        
+        # Create background task for composition
+        background_thread = threading.Thread(
+            target=_run_phase3_composition,
+            args=(job_id, orchestrator)
+        )
+        background_thread.daemon = True
+        background_thread.start()
+        
+        return {
+            "job_id": job_id,
+            "status": "phase3_processing",
+            "message": "Final video composition started"
+        }
+        
+    except Exception as e:
+        error_msg = f"Failed to start final video generation: {str(e)}"
+        update_video_job(job_id, status="failed", error=error_msg)
+        jlog(log, logging.ERROR,
+             event="phase3_composition_exception",
+             job_id=job_id,
+             error=error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
+
+
+def _run_phase3_composition(job_id: str, orchestrator):
+    """Background task for Phase 3 video composition"""
+    try:
+        jlog(log, logging.INFO,
+             event="phase3_background_start",
+             job_id=job_id)
+        
+        # Run the composition process
+        result = orchestrator.compose_final_video()
+        
+        if result.get("success"):
+            update_video_job(job_id, 
+                           status="completed",
+                           final_video_path=result.get("output_path"),
+                           composition_time=result.get("processing_time"))
+            
+            jlog(log, logging.INFO,
+                 event="phase3_composition_success",
+                 job_id=job_id,
+                 output_path=result.get("output_path"),
+                 processing_time=result.get("processing_time"))
+        else:
+            error_msg = result.get("error", "Unknown composition error")
+            update_video_job(job_id, status="failed", error=error_msg)
+            jlog(log, logging.ERROR,
+                 event="phase3_composition_failed",
+                 job_id=job_id,
+                 error=error_msg)
+            
+    except Exception as e:
+        error_msg = f"Phase 3 composition failed: {str(e)}"
+        update_video_job(job_id, status="failed", error=error_msg)
+        jlog(log, logging.ERROR,
+             event="phase3_background_exception",
+             job_id=job_id,
+             error=error_msg)
+
+
+@app.get("/video/result/{job_id}")
+async def video_result(job_id: str):
+    """Get video processing result and download information"""
+    if job_id not in video_jobs:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    
+    job = video_jobs[job_id]
+    
+    if job["status"] in ["processing", "phase1_processing", "phase2_processing", "phase3_processing"]:
+        return {"job_id": job_id, "status": job["status"], "message": "Still processing..."}
     elif job["status"] == "failed":
         return {"job_id": job_id, "status": "failed", "error": job.get("error")}
     elif job["status"] == "completed":
-        # TODO: Module 5 will implement actual download functionality
-        return {
-            "job_id": job_id, 
-            "status": "completed",
-            "download_url": f"/video/download/{job_id}",
-            "message": "Processing complete (download implementation pending)"
-        }
+        final_video_path = job.get("final_video_path")
+        if final_video_path and Path(final_video_path).exists():
+            return {
+                "job_id": job_id, 
+                "status": "completed",
+                "download_url": f"/video/download/{job_id}",
+                "file_size": Path(final_video_path).stat().st_size,
+                "composition_time": job.get("composition_time"),
+                "message": "Video ready for download"
+            }
+        else:
+            return {
+                "job_id": job_id,
+                "status": "completed",
+                "message": "Processing complete but file not found"
+            }
     else:
         return {"job_id": job_id, "status": job["status"], "message": "Ready for processing"}
+
+
+@app.get("/video/download/{job_id}")
+async def download_video(job_id: str):
+    """Download the final composed video file"""
+    if job_id not in video_jobs:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    
+    job = video_jobs[job_id]
+    
+    if job["status"] != "completed":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Video not ready for download. Status: {job['status']}"
+        )
+    
+    final_video_path = job.get("final_video_path")
+    if not final_video_path or not Path(final_video_path).exists():
+        raise HTTPException(status_code=404, detail="Video file not found")
+    
+    from fastapi.responses import FileResponse
+    
+    # Generate a meaningful filename
+    filename = f"presgen_video_{job_id}.mp4"
+    
+    jlog(log, logging.INFO,
+         event="video_download_start",
+         job_id=job_id,
+         file_path=final_video_path,
+         filename=filename)
+    
+    return FileResponse(
+        path=final_video_path,
+        filename=filename,
+        media_type="video/mp4",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 
 @app.post("/data/ask")
 async def data_ask(req: DataAsk):

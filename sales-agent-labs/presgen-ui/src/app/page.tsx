@@ -6,6 +6,7 @@ import { Header } from "@/components/Header"
 import { SegmentedTabs } from "@/components/SegmentedTabs"
 import { CoreForm } from "@/components/CoreForm"
 import { DataForm } from "@/components/DataForm"
+import { VideoWorkflow } from "@/components/video/VideoWorkflow"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
@@ -24,8 +25,7 @@ const TABS: TabConfig[] = [
   {
     value: "video",
     label: "PresGen-Video",
-    disabled: true,
-    tooltip: "Coming soon! Convert video content into slide presentations.",
+    disabled: false,
   },
 ]
 
@@ -39,36 +39,7 @@ export default function Home() {
       case "data":
         return <DataForm />
       case "video":
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Video className="w-5 h-5" />
-                PresGen-Video - Video to Slides
-              </CardTitle>
-              <CardDescription>
-                Transform video content into professional slide presentations
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col items-center justify-center py-16 text-center space-y-4">
-                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-                  <Clock className="w-8 h-8 text-muted-foreground" />
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-lg font-semibold">Coming Soon</h3>
-                  <p className="text-muted-foreground max-w-md">
-                    We're working on video-to-slides conversion. Soon you'll be able to upload video content 
-                    and generate professional presentations automatically.
-                  </p>
-                </div>
-                <Button disabled variant="outline">
-                  Upload Video (Coming Soon)
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )
+        return <VideoWorkflow />
       default:
         return null
     }
