@@ -99,5 +99,21 @@
     "cached_at": 1756910324.948304,
     "library": "playwright",
     "topic": "screenshot"
+  },
+  "c327740cff07223645253675fc71d8c7": {
+    "data": {
+      "library": "playwright",
+      "topic": "html_to_png",
+      "status": "simulated",
+      "message": "Simulated documentation for playwright:html_to_png",
+      "best_practices": [
+        "Use current playwright API patterns",
+        "Follow official documentation",
+        "Optimize for performance in demo scenarios"
+      ]
+    },
+    "cached_at": 1756923344.610691,
+    "library": "playwright",
+    "topic": "html_to_png"
   }
 }

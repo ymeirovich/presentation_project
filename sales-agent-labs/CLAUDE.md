@@ -26,6 +26,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **With options**: `python3 -m src.mcp_lab examples/report_demo.txt --slides 3 --no-cache`
 - **Batch processing**: `make run-batch`
 - **Orchestrator demo**: `make run-orchestrator`
+- **Video processing test**: `python3 -m src.mcp.tools.video_orchestrator`
+- **Context7 test**: `python3 -m src.mcp.tools.context7`
 
 ## Architecture Overview
 
@@ -54,6 +56,9 @@ This is an AI-powered presentation generation system with three main architectur
 - **image.generate**: Creates images from prompts using Vertex AI Imagen  
 - **slides.create**: Builds Google Slides presentations with content and images
 - **data.query**: Processes Excel data to generate insights and charts
+- **video.audio**: Extracts audio from video files using Context7-optimized ffmpeg patterns
+- **video.face**: Detects faces and calculates stable crop regions using OpenCV
+- **context7**: Provides real-time API documentation for video processing tools
 
 ## Configuration
 

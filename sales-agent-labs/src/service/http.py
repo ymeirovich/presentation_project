@@ -677,7 +677,7 @@ async def video_process(job_id: str):
                 "message": "Phase 1 parallel processing completed successfully",
                 "processing_time": result.processing_time,
                 "target_met": result.processing_time < 30,
-                "next_phase": "Phase 2 (transcription + summarization) - Module 3 implementation pending"
+                "next_phase": "Phase 2 available - transcription → summarization → slides"
             }
         else:
             # Handle Phase 1 failure
@@ -716,6 +716,112 @@ async def video_process(job_id: str):
              error=error_msg)
         
         raise HTTPException(status_code=500, detail=error_msg)
+
+
+@app.post("/video/process-phase2/{job_id}")
+async def video_process_phase2(job_id: str):
+    """Execute Phase 2: transcription → summarization → slide generation"""
+    if job_id not in video_jobs:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    
+    job = video_jobs[job_id]
+    
+    if job["status"] != "phase1_complete":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Job must be in phase1_complete status, currently: {job['status']}"
+        )
+    
+    # Update job status
+    update_video_job(job_id, status="processing", progress={"phase": "phase2_starting"})
+    
+    jlog(log, logging.INFO, event="phase2_processing_started", job_id=job_id)
+    
+    try:
+        # Import and initialize Phase 2 orchestrator
+        from src.mcp.tools.video_phase2 import Phase2Orchestrator
+        
+        orchestrator = Phase2Orchestrator(job_id)
+        
+        # Execute Phase 2 sequential processing
+        jlog(log, logging.INFO, event="phase2_starting", job_id=job_id)
+        update_video_job(job_id, progress={"phase": "phase2", "status": "processing"})
+        
+        result = await orchestrator.process_content_pipeline()
+        
+        if result.success:
+            # Update job with Phase 2 results
+            update_video_job(
+                job_id,
+                status="phase2_complete",
+                progress={
+                    "phase": "phase2_complete",
+                    "processing_time": result.processing_time,
+                    "transcription_success": result.transcription.success if result.transcription else False,
+                    "content_success": result.content.success if result.content else False,
+                    "slides_success": result.slides.success if result.slides else False,
+                    "slides_generated": result.slides.slides_generated if result.slides else 0
+                },
+                phases={
+                    **job.get("phases", {}),
+                    "phase2": result.processing_time
+                }
+            )
+            
+            jlog(log, logging.INFO, 
+                 event="phase2_success",
+                 job_id=job_id,
+                 processing_time=result.processing_time,
+                 target_met=result.processing_time < 60,
+                 slides_generated=result.slides.slides_generated if result.slides else 0)
+            
+            return {
+                "job_id": job_id,
+                "status": "phase2_complete",
+                "message": "Phase 2 content processing completed successfully",
+                "processing_time": result.processing_time,
+                "target_met": result.processing_time < 60,
+                "slides_generated": result.slides.slides_generated if result.slides else 0,
+                "next_phase": "Phase 3 (composition) - Module 5 implementation pending"
+            }
+        else:
+            # Handle Phase 2 failure
+            update_video_job(
+                job_id,
+                status="failed",
+                error=result.error,
+                progress={"phase": "phase2_failed", "error": result.error}
+            )
+            
+            jlog(log, logging.ERROR,
+                 event="phase2_failure",
+                 job_id=job_id,
+                 error=result.error)
+            
+            return {
+                "job_id": job_id,
+                "status": "failed",
+                "error": result.error
+            }
+    
+    except Exception as e:
+        error_msg = f"Phase 2 processing failed: {str(e)}"
+        
+        # Update job with error
+        update_video_job(
+            job_id,
+            status="failed",
+            error=error_msg,
+            progress={"phase": "phase2_failed", "error": error_msg}
+        )
+        
+        jlog(log, logging.ERROR,
+             event="phase2_processing_exception",
+             job_id=job_id,
+             error=error_msg)
+        
+        raise HTTPException(status_code=500, detail=error_msg)
+
 
 @app.get("/video/result/{job_id}")
 async def video_result(job_id: str):
