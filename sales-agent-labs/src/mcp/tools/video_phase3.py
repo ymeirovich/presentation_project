@@ -31,11 +31,12 @@ class CompositionResult:
 class Phase3Orchestrator:
     """Orchestrator for final 50/50 video composition with timed slide overlays"""
     
-    def __init__(self, job_id: str):
+    def __init__(self, job_id: str, job_data: Optional[Dict[str, Any]] = None):
         self.job_id = job_id
         self.job_dir = Path(f"/tmp/jobs/{job_id}")
         self.output_dir = self.job_dir / "output"
         self.output_dir.mkdir(exist_ok=True)
+        self._provided_job_data = job_data  # Store provided job data
         
     def compose_final_video(self) -> Dict[str, Any]:
         """
@@ -105,24 +106,75 @@ class Phase3Orchestrator:
     def _load_job_data(self) -> Optional[Dict[str, Any]]:
         """Load job data including summary, crop region, and slide information"""
         try:
-            # Load summary data (would come from saved state in production)
-            summary_data = {
-                "bullet_points": [
-                    {"timestamp": "00:30", "text": "Our goal is to demonstrate AI transformation", "confidence": 0.9, "duration": 20.0},
-                    {"timestamp": "01:15", "text": "Data shows significant improvements", "confidence": 0.8, "duration": 25.0},
-                    {"timestamp": "02:00", "text": "Recommendation: implement company-wide", "confidence": 0.9, "duration": 15.0}
-                ],
-                "main_themes": ["Strategy", "Data", "Implementation"],
-                "total_duration": "02:30"
-            }
+            summary_data = None
             
-            # Load crop region from job state
+            # First try to use provided job data (from HTTP service)
+            if self._provided_job_data:
+                jlog(log, logging.INFO,
+                     event="job_data_provided_debug",
+                     job_id=self.job_id,
+                     provided_keys=list(self._provided_job_data.keys()),
+                     has_summary="summary" in self._provided_job_data)
+                
+                if "summary" in self._provided_job_data:
+                    summary_data = self._provided_job_data["summary"]
+                    jlog(log, logging.INFO,
+                         event="job_data_loaded_from_provided",
+                         job_id=self.job_id,
+                         has_summary=bool(summary_data),
+                         summary_keys=list(summary_data.keys()) if isinstance(summary_data, dict) else "not_dict")
+            else:
+                jlog(log, logging.WARNING,
+                     event="no_job_data_provided",
+                     job_id=self.job_id)
+            
+            # Fallback to loading from saved state file
+            if not summary_data:
+                job_state_file = self.job_dir / "job_state.json"
+                if job_state_file.exists():
+                    # Load from saved job state
+                    import json
+                    with open(job_state_file, 'r') as f:
+                        job_state = json.load(f)
+                        summary_data = job_state.get("summary")
+                        
+                    jlog(log, logging.INFO,
+                         event="job_data_loaded_from_state",
+                         job_id=self.job_id,
+                         has_summary=bool(summary_data))
+            
+            # Final fallback to mock data if no source found
+            if not summary_data:
+                jlog(log, logging.WARNING,
+                     event="job_data_fallback_to_mock",
+                     job_id=self.job_id,
+                     reason="no_saved_state_found")
+                
+                summary_data = {
+                    "bullet_points": [
+                        {"timestamp": "00:30", "text": "Our goal is to demonstrate AI transformation", "confidence": 0.9, "duration": 20.0},
+                        {"timestamp": "01:15", "text": "Data shows significant improvements", "confidence": 0.8, "duration": 25.0},
+                        {"timestamp": "02:00", "text": "Recommendation: implement company-wide", "confidence": 0.9, "duration": 15.0}
+                    ],
+                    "main_themes": ["Strategy", "Data", "Implementation"],
+                    "total_duration": "02:30"
+                }
+            
+            # Load crop region from provided data or use defaults
             crop_region = {
                 "x": 483,
-                "y": 256,
+                "y": 256, 
                 "width": 379,
                 "height": 379
             }
+            
+            # Use provided crop region if available
+            if self._provided_job_data and "crop_region" in self._provided_job_data:
+                crop_region = self._provided_job_data["crop_region"]
+                jlog(log, logging.INFO,
+                     event="crop_region_loaded_from_provided",
+                     job_id=self.job_id,
+                     crop_region=crop_region)
             
             return {
                 "summary": summary_data,
@@ -224,7 +276,10 @@ class Phase3Orchestrator:
             jlog(log, logging.INFO,
                  event="ffmpeg_command_start",
                  job_id=self.job_id,
-                 command=" ".join(cmd[:10]) + "...")  # Log truncated command
+                 command=" ".join(cmd),  # Log full command for debugging
+                 input_video=raw_video,
+                 slide_files=slide_files[:3],
+                 crop_region=crop_region)
             
             # Execute ffmpeg command
             result = subprocess.run(
@@ -239,7 +294,8 @@ class Phase3Orchestrator:
                      event="ffmpeg_execution_failed",
                      job_id=self.job_id,
                      return_code=result.returncode,
-                     stderr=result.stderr[:500])  # Truncate stderr
+                     stderr=result.stderr,  # Log full stderr for debugging
+                     stdout=result.stdout)
                 return None
             
             # Verify output file was created
@@ -287,14 +343,16 @@ class Phase3Orchestrator:
         ]
         
         # Add slide images as inputs
-        for slide_file in slide_files[:3]:  # Limit to first 3 slides
+        for slide_file in slide_files:
             cmd.extend(["-i", slide_file])
         
         # Build complex filter for 50/50 layout with timed overlays
-        filter_complex = self._build_filter_complex(slide_timeline, crop_region)
+        filter_complex = self._build_filter_complex(slide_timeline, crop_region, len(slide_files))
         
         cmd.extend([
             "-filter_complex", filter_complex,
+            "-map", "[v]",      # Map the filtered video output
+            "-map", "0:a",      # Map the original audio
             "-c:v", "libx264",  # Video codec
             "-c:a", "aac",      # Audio codec
             "-preset", "medium", # Balance between quality and speed
@@ -307,36 +365,73 @@ class Phase3Orchestrator:
     
     def _build_filter_complex(self, 
                             slide_timeline: List[Dict[str, Any]], 
-                            crop_region: Dict[str, str]) -> str:
-        """Build the complex filter for 50/50 video composition"""
+                            crop_region: Dict[str, str],
+                            num_slides: int) -> str:
+        """Build the complex filter for 50/50 video composition with timed slide transitions"""
         
         # Crop the original video to the face region
         x, y, w, h = crop_region["x"], crop_region["y"], crop_region["width"], crop_region["height"]
         
-        filters = [
-            # Crop original video and scale to half width
-            f"[0:v]crop={w}:{h}:{x}:{y},scale=640:720[left]",
+        # Create left side (cropped video)
+        left_filter = f"[0:v]crop={w}:{h}:{x}:{y},scale=640:720[left]"
+        
+        # Create right side with timed slide transitions
+        if num_slides <= 1:
+            # Single slide case - simple implementation
+            right_filter = f"[1:v]scale=640:720[right]"
+        else:
+            # Multiple slides with timing
+            right_filter = self._build_slide_transitions(slide_timeline, num_slides)
+        
+        # Combine left and right
+        filter_complex = f"{left_filter};{right_filter};[left][right]hstack=inputs=2[v]"
+        
+        return filter_complex
+    
+    def _build_slide_transitions(self, slide_timeline: List[Dict[str, Any]], num_slides: int) -> str:
+        """Build slide transition filters with precise timing"""
+        
+        jlog(log, logging.WARNING,
+             event="entering_build_slide_transitions",
+             job_id=self.job_id,
+             num_slides=num_slides)
+
+        if num_slides <= 1:
+            return f"[1:v]scale=640:720[right]" if num_slides == 1 else ""
+        
+        jlog(log, logging.INFO,
+             event="slide_transition_debug",
+             job_id=self.job_id,
+             timeline_count=len(slide_timeline),
+             num_slides=num_slides)
+        
+        filters = []
+        for i in range(num_slides):
+            filters.append(f"[{i+1}:v]scale=640:720[slide{i}]")
+        
+        last_stream = "slide0"
+        for i in range(1, num_slides):
+            start_time = slide_timeline[i]['start_time']
+            output_name = 'right' if i == num_slides - 1 else f'temp{i}'
             
-            # Scale slides to right half
-            "[1:v]scale=640:720[slide1]",
-            "[2:v]scale=640:720[slide2]", 
-            "[3:v]scale=640:720[slide3]",
-        ]
+            jlog(log, logging.WARNING,
+                 event="slide_transition_loop",
+                 job_id=self.job_id,
+                 iteration=i,
+                 last_stream=last_stream,
+                 output_name=output_name,
+                 start_time=start_time)
+
+            filters.append(f"[{last_stream}][slide{i}]overlay=0:0:enable='gte(t,{start_time})'[{output_name}]")
+            last_stream = output_name
+
+        filter_str = ";".join(filters)
+        jlog(log, logging.WARNING,
+             event="slide_transition_filter",
+             job_id=self.job_id,
+             filter_complex=filter_str)
         
-        # Create timed slide overlays
-        overlay_chain = "[slide1]"
-        for i, timeline_entry in enumerate(slide_timeline[1:], 1):
-            start_time = timeline_entry["start_time"]
-            duration = timeline_entry["duration"]
-            filters.append(
-                f"{overlay_chain}[slide{i+1}]overlay=0:0:enable='between(t,{start_time},{start_time + duration})'[slide_overlay_{i}]"
-            )
-            overlay_chain = f"[slide_overlay_{i}]"
-        
-        # Final horizontal composition: left video + right slides
-        filters.append(f"[left]{overlay_chain}hstack=inputs=2[final]")
-        
-        return ";".join(filters)
+        return filter_str
     
     def _get_video_metadata(self, video_path: Path) -> Dict[str, Any]:
         """Extract metadata from the final video using ffprobe"""

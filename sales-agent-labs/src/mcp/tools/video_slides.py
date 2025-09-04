@@ -304,38 +304,9 @@ class PlaywrightAgent:
                     position: relative;
                 }}
                 
-                .slide-header {{
-                    position: absolute;
-                    top: 40px;
-                    right: 60px;
-                    display: flex;
-                    align-items: center;
-                    gap: 15px;
-                }}
+                /* Removed slide header styles for clean video output */
                 
-                .timestamp {{
-                    background: {self.design.accent_color};
-                    color: white;
-                    padding: 8px 16px;
-                    border-radius: 20px;
-                    font-size: 14px;
-                    font-weight: 600;
-                }}
-                
-                .slide-counter {{
-                    color: {self.design.text_color};
-                    font-size: 14px;
-                    opacity: 0.7;
-                }}
-                
-                .theme-title {{
-                    color: {self.design.accent_color};
-                    font-size: 24px;
-                    font-weight: 600;
-                    margin-bottom: 20px;
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                }}
+                /* Removed theme-title styles for clean slide display */
                 
                 .main-content {{
                     color: {self.design.title_color};
@@ -347,35 +318,7 @@ class PlaywrightAgent:
                     word-wrap: break-word;
                 }}
                 
-                .confidence-indicator {{
-                    position: absolute;
-                    bottom: 40px;
-                    left: 60px;
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                    opacity: 0.6;
-                }}
-                
-                .confidence-bar {{
-                    width: 60px;
-                    height: 4px;
-                    background: #e2e8f0;
-                    border-radius: 2px;
-                    overflow: hidden;
-                }}
-                
-                .confidence-fill {{
-                    height: 100%;
-                    background: {self.design.accent_color};
-                    width: {bullet.confidence * 100}%;
-                    transition: width 0.3s ease;
-                }}
-                
-                .confidence-text {{
-                    font-size: 12px;
-                    color: {self.design.text_color};
-                }}
+                /* Removed confidence indicator styles for clean video output */
                 
                 /* Professional accent line */
                 .accent-line {{
@@ -391,25 +334,15 @@ class PlaywrightAgent:
         <body>
             <div class="accent-line"></div>
             
-            <div class="slide-header">
-                <div class="timestamp">{bullet.timestamp}</div>
-                <div class="slide-counter">{slide_num}/{total_slides}</div>
-            </div>
+            <!-- Removed slide-header with timestamp and counter for clean video output -->
             
-            <div class="theme-title">{theme_title}</div>
+            <!-- Removed theme-title for clean slide display -->
             
             <div class="main-content">
                 {bullet.text}
             </div>
             
-            <div class="confidence-indicator">
-                <div class="confidence-bar">
-                    <div class="confidence-fill"></div>
-                </div>
-                <div class="confidence-text">
-                    {bullet.confidence:.1%} confidence
-                </div>
-            </div>
+            <!-- Removed confidence indicator for clean video output -->
         </body>
         </html>
         """

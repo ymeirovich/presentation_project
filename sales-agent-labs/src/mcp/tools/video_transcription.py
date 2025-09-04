@@ -3,12 +3,46 @@
 TranscriptionAgent for video processing with Whisper and Context7 integration
 """
 
+# CRITICAL: Import OpenMP override FIRST
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+import openmp_override  # This must be first
+
 import asyncio
 import logging
 import time
-import whisper
-import torch
-from pathlib import Path
+import os
+
+# Suppress OpenMP warnings
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="whisper")
+warnings.filterwarnings("ignore", message=".*FP16 is not supported on CPU.*")
+warnings.filterwarnings("ignore", message=".*omp_set_nested.*")
+
+# Defer whisper import to avoid startup crashes - import only when needed
+whisper = None
+torch = None
+
+def _lazy_import_whisper():
+    """Lazy import whisper with full OpenMP protection"""
+    global whisper, torch
+    if whisper is None:
+        # Additional protection right before import
+        import os
+        os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+        os.environ['OMP_MAX_ACTIVE_LEVELS'] = '1'
+        
+        import whisper as _whisper
+        import torch as _torch
+        
+        # Force single-threaded execution
+        _torch.set_num_threads(1)
+        
+        whisper = _whisper
+        torch = _torch
+        
+    return whisper, torch
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 
@@ -127,18 +161,21 @@ class TranscriptionAgent:
             )
     
     async def _initialize_whisper_model(self, context: Dict[str, Any]):
-        """Initialize Whisper model with Context7 optimization"""
+        """Initialize Whisper model with Context7 optimization and lazy loading"""
         
         try:
+            # Lazy import whisper with full protection
+            whisper_lib, torch_lib = _lazy_import_whisper()
+            
             # Use Context7 recommended model if available
             if "optimal_model" in context:
                 recommended_model = context["optimal_model"]
-                if recommended_model in whisper.available_models():
+                if recommended_model in whisper_lib.available_models():
                     self.model_name = recommended_model
                     
             # Check performance settings
             performance_settings = context.get("performance_settings", {})
-            if performance_settings.get("model") in whisper.available_models():
+            if performance_settings.get("model") in whisper_lib.available_models():
                 self.model_name = performance_settings["model"]
             
             jlog(log, logging.INFO,
@@ -148,8 +185,21 @@ class TranscriptionAgent:
                  device="cpu",  # We verified CUDA is not available
                  context7_guided=bool("optimal_model" in context))
             
-            # Load model (this will download if not cached)
-            self.whisper_model = whisper.load_model(self.model_name, device="cpu")
+            # Load model (this will download if not cached) with OpenMP protection
+            try:
+                # Additional OpenMP protection before model loading
+                os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+                import warnings
+                warnings.filterwarnings("ignore", message="FP16 is not supported on CPU")
+                
+                self.whisper_model = whisper_lib.load_model(self.model_name, device="cpu")
+            except Exception as model_error:
+                jlog(log, logging.ERROR,
+                     event="whisper_model_load_error",
+                     job_id=self.job_id,
+                     model=self.model_name,
+                     error=str(model_error))
+                raise model_error
             
             jlog(log, logging.INFO,
                  event="whisper_model_loaded",
@@ -165,7 +215,10 @@ class TranscriptionAgent:
                  fallback_model="tiny")
             
             self.model_name = "tiny"
-            self.whisper_model = whisper.load_model("tiny", device="cpu")
+            # Fallback model loading with OpenMP protection  
+            os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+            whisper_lib, _ = _lazy_import_whisper()
+            self.whisper_model = whisper_lib.load_model("tiny", device="cpu")
     
     async def _transcribe_with_whisper(self, audio_path: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Perform transcription with Context7-optimized parameters"""

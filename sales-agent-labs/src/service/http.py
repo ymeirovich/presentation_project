@@ -1,6 +1,12 @@
 # src/service/http.py
 from __future__ import annotations
 
+# CRITICAL: Import OpenMP override FIRST before any other imports
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+import openmp_override  # This must be first
+
 import os
 import hmac
 import hashlib
@@ -751,9 +757,15 @@ async def video_process_phase2(job_id: str):
         
         if result.success:
             # Update job with Phase 2 results
+            # Save the actual summary data to job
+            summary_data = None
+            if result.content and result.content.success and result.content.summary:
+                summary_data = result.content.summary.dict()
+            
             update_video_job(
                 job_id,
                 status="phase2_complete",
+                summary=summary_data,  # Save actual summary
                 progress={
                     "phase": "phase2_complete",
                     "processing_time": result.processing_time,
@@ -848,18 +860,51 @@ async def video_preview(job_id: str):
         slide_files = list(slides_dir.glob("*.png")) if slides_dir.exists() else []
         slide_urls = [f"/tmp/jobs/{job_id}/slides/{f.name}" for f in sorted(slide_files)]
         
-        # Mock summary data for demo (in production, this would come from saved state)
-        mock_summary = {
-            "bullet_points": [
-                {"timestamp": "00:30", "text": "Our goal is to demonstrate AI transformation", "confidence": 0.9, "duration": 20.0},
-                {"timestamp": "01:15", "text": "Data shows significant improvements", "confidence": 0.8, "duration": 25.0},
-                {"timestamp": "02:00", "text": "Recommendation: implement company-wide", "confidence": 0.9, "duration": 15.0}
-            ],
-            "main_themes": ["Strategy", "Data", "Implementation"],
-            "total_duration": "02:30",
-            "language": "en",
-            "summary_confidence": 0.85
-        }
+        # Get actual summary data from Phase 2 processing results
+        actual_summary = None
+        try:
+            # Try to get summary from job data if it was processed
+            if "summary" in job and job["summary"]:
+                actual_summary = job["summary"]
+                jlog(log, logging.INFO,
+                     event="preview_using_job_summary",
+                     job_id=job_id,
+                     bullet_count=len(actual_summary.get("bullet_points", [])))
+            else:
+                # Fallback: try to get from Phase2 orchestrator results
+                summary_result = await orchestrator.get_content_summary()
+                if summary_result and summary_result.success:
+                    actual_summary = summary_result.summary.dict()
+                    jlog(log, logging.INFO,
+                         event="preview_using_orchestrator_summary",
+                         job_id=job_id,
+                         bullet_count=len(actual_summary.get("bullet_points", [])))
+        except Exception as e:
+            jlog(log, logging.WARNING,
+                 event="preview_summary_fallback",
+                 job_id=job_id,
+                 error=str(e))
+        
+        # Use actual summary if available, otherwise fallback to mock
+        if actual_summary:
+            summary = actual_summary
+        else:
+            jlog(log, logging.WARNING,
+                 event="preview_using_mock_summary",
+                 job_id=job_id,
+                 reason="no_actual_summary_available")
+            
+            summary = {
+                "bullet_points": [
+                    {"timestamp": "00:30", "text": "Our goal is to demonstrate AI transformation", "confidence": 0.9, "duration": 20.0},
+                    {"timestamp": "01:15", "text": "Data shows significant improvements", "confidence": 0.8, "duration": 25.0},
+                    {"timestamp": "02:00", "text": "Recommendation: implement company-wide", "confidence": 0.9, "duration": 15.0}
+                ],
+                "main_themes": ["Strategy", "Data", "Implementation"],
+                "total_duration": "02:30",
+                "language": "en",
+                "summary_confidence": 0.85
+            }
         
         # Mock video metadata
         video_metadata = {
@@ -886,7 +931,7 @@ async def video_preview(job_id: str):
         
         return {
             "job_id": job_id,
-            "summary": mock_summary,
+            "summary": summary,
             "slide_urls": slide_urls,
             "video_metadata": video_metadata,
             "crop_region": crop_region,
@@ -924,14 +969,29 @@ async def update_bullets(job_id: str, summary: dict):
              job_id=job_id,
              bullet_count=len(bullet_points))
         
-        # TODO: Integrate with PlaywrightAgent to regenerate slides
-        # For now, simulate the update
-        await asyncio.sleep(2)  # Simulate processing time
+        # Regenerate slides with updated bullet points
+        from src.mcp.tools.video_slides import PlaywrightAgent
+        from src.mcp.tools.video_content import VideoSummary
+        
+        # Convert dict to VideoSummary object
+        video_summary = VideoSummary(**summary)
+        
+        # Initialize Playwright agent and regenerate slides
+        playwright_agent = PlaywrightAgent(job_id)
+        slides_result = await playwright_agent.generate_slides(video_summary)
+        
+        if not slides_result.success:
+            raise Exception(f"Slide regeneration failed: {slides_result.error}")
+        
+        jlog(log, logging.INFO,
+             event="slides_regenerated",
+             job_id=job_id,
+             slides_generated=slides_result.slides_generated)
         
         # Update job with new summary
         update_video_job(job_id, summary=summary)
         
-        # Mock response with updated slide URLs
+        # Get updated slide URLs
         slides_dir = Path(f"/tmp/jobs/{job_id}/slides")
         slide_files = list(slides_dir.glob("*.png")) if slides_dir.exists() else []
         slide_urls = [f"/tmp/jobs/{job_id}/slides/{f.name}" for f in sorted(slide_files)]
@@ -1031,7 +1091,16 @@ async def generate_final_video(job_id: str):
         
         # Start Phase 3 composition in background
         from src.mcp.tools.video_phase3 import Phase3Orchestrator
-        orchestrator = Phase3Orchestrator(job_id)
+        
+        # Get the current job data with bullet points
+        job_data = video_jobs.get(job_id, {})
+        jlog(log, logging.INFO,
+             event="phase3_job_data_debug",
+             job_id=job_id,
+             job_data_keys=list(job_data.keys()),
+             has_summary="summary" in job_data)
+        
+        orchestrator = Phase3Orchestrator(job_id, job_data)
         
         # Create background task for composition
         background_thread = threading.Thread(

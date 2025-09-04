@@ -37,8 +37,12 @@ def _setup_gcp_debug_logging():
             from datetime import datetime
             import pathlib
             
-            # Ensure logs directory exists
-            logs_dir = pathlib.Path("src/logs")
+            # Ensure logs directory exists - use presgen-video/logs if video logging enabled
+            video_logging = os.getenv("PRESGEN_VIDEO_LOGGING", "false").lower() == "true"
+            if video_logging:
+                logs_dir = pathlib.Path("presgen-video/logs")
+            else:
+                logs_dir = pathlib.Path("src/logs")
             logs_dir.mkdir(exist_ok=True)
             
             debug_file = logs_dir / f"debug-gcp-{datetime.now().strftime('%Y%m%d-%H%M%S')}.log"
@@ -59,6 +63,15 @@ def _setup_gcp_debug_logging():
                 'googleapiclient', 'google_auth_httplib2', 'urllib3',
                 'agent.slides', 'mcp_lab.rpc_client', 'mcp.tools'
             ]
+            
+            # Add video-specific loggers if video logging is enabled
+            if video_logging:
+                video_loggers = [
+                    'video_transcription', 'video_content', 'video_slides', 
+                    'video_phase2', 'video_phase3', 'video_audio', 'video_face',
+                    'service', 'uvicorn', 'uvicorn.access', 'uvicorn.error'
+                ]
+                loggers_to_file.extend(video_loggers)
             
             for logger_name in loggers_to_file:
                 logger = logging.getLogger(logger_name)
