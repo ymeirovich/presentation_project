@@ -334,7 +334,12 @@ class Phase3Orchestrator:
                             slide_timeline: List[Dict[str, Any]],
                             crop_region: Dict[str, str],
                             output_path: Path) -> List[str]:
-        """Build complex ffmpeg command for 50/50 composition with timed slide overlays"""
+        """Build complex ffmpeg command for 50/50 composition with subtitle-based text overlay"""
+        
+        # Generate subtitle file for text overlays
+        subtitle_path = self._generate_subtitle_file(slide_timeline)
+        if not subtitle_path:
+            raise Exception("Failed to generate subtitle file")
         
         # Base command with input video
         cmd = [
@@ -342,12 +347,12 @@ class Phase3Orchestrator:
             "-i", raw_video
         ]
         
-        # Add slide images as inputs
-        for slide_file in slide_files:
+        # Add slide images as inputs (we'll use the first one as background)
+        for slide_file in slide_files[:1]:  # Only need first slide as background
             cmd.extend(["-i", slide_file])
         
-        # Build complex filter for 50/50 layout with timed overlays
-        filter_complex = self._build_filter_complex(slide_timeline, crop_region, len(slide_files))
+        # Build complex filter for 50/50 layout with subtitle overlay
+        filter_complex = self._build_filter_complex(slide_timeline, crop_region, len(slide_files), subtitle_path)
         
         cmd.extend([
             "-filter_complex", filter_complex,
@@ -366,8 +371,9 @@ class Phase3Orchestrator:
     def _build_filter_complex(self, 
                             slide_timeline: List[Dict[str, Any]], 
                             crop_region: Dict[str, str],
-                            num_slides: int) -> str:
-        """Build the complex filter for 50/50 video composition with timed slide transitions"""
+                            num_slides: int,
+                            subtitle_path: str) -> str:
+        """Build the complex filter for 50/50 video composition with subtitle overlay"""
         
         # Crop the original video to the face region
         x, y, w, h = crop_region["x"], crop_region["y"], crop_region["width"], crop_region["height"]
@@ -375,63 +381,71 @@ class Phase3Orchestrator:
         # Create left side (cropped video)
         left_filter = f"[0:v]crop={w}:{h}:{x}:{y},scale=640:720[left]"
         
-        # Create right side with timed slide transitions
-        if num_slides <= 1:
-            # Single slide case - simple implementation
-            right_filter = f"[1:v]scale=640:720[right]"
+        # Create right side - static background with subtitle text overlay
+        if num_slides >= 1:
+            # Use first slide as background, add subtitle text overlay
+            right_filter = (
+                f"[1:v]scale=640:720,"
+                f"subtitles='{subtitle_path}':force_style='FontSize=12,PrimaryColour=&Hffffff,OutlineColour=&H000000,BorderStyle=3,Outline=2,Shadow=1,MarginV=50'[right]"
+            )
         else:
-            # Multiple slides with timing
-            right_filter = self._build_slide_transitions(slide_timeline, num_slides)
+            # Fallback to solid background with subtitles
+            right_filter = (
+                f"color=c=black:s=640x720:d=0,"
+                f"subtitles='{subtitle_path}':force_style='FontSize=12,PrimaryColour=&Hffffff,OutlineColour=&H000000,BorderStyle=3,Outline=2,Shadow=1,MarginV=50'[right]"
+            )
         
         # Combine left and right
         filter_complex = f"{left_filter};{right_filter};[left][right]hstack=inputs=2[v]"
         
         return filter_complex
     
-    def _build_slide_transitions(self, slide_timeline: List[Dict[str, Any]], num_slides: int) -> str:
-        """Build slide transition filters with precise timing"""
+    def _generate_subtitle_file(self, slide_timeline: List[Dict[str, Any]]) -> str:
+        """Generate SRT subtitle file for timed text overlays"""
+        # Use the presgen-video/srt directory
+        srt_dir = Path("presgen-video/srt")
+        srt_dir.mkdir(parents=True, exist_ok=True)
+        srt_path = srt_dir / f"subtitles_{self.job_id}.srt"
         
-        jlog(log, logging.WARNING,
-             event="entering_build_slide_transitions",
-             job_id=self.job_id,
-             num_slides=num_slides)
-
-        if num_slides <= 1:
-            return f"[1:v]scale=640:720[right]" if num_slides == 1 else ""
-        
-        jlog(log, logging.INFO,
-             event="slide_transition_debug",
-             job_id=self.job_id,
-             timeline_count=len(slide_timeline),
-             num_slides=num_slides)
-        
-        filters = []
-        for i in range(num_slides):
-            filters.append(f"[{i+1}:v]scale=640:720[slide{i}]")
-        
-        last_stream = "slide0"
-        for i in range(1, num_slides):
-            start_time = slide_timeline[i]['start_time']
-            output_name = 'right' if i == num_slides - 1 else f'temp{i}'
+        try:
+            with open(srt_path, 'w', encoding='utf-8') as f:
+                for i, entry in enumerate(slide_timeline, 1):
+                    start_time = entry['start_time']
+                    duration = entry['duration']
+                    end_time = start_time + duration
+                    text = entry['text']
+                    
+                    # Convert seconds to SRT time format (HH:MM:SS,mmm)
+                    start_srt = self._seconds_to_srt_time(start_time)
+                    end_srt = self._seconds_to_srt_time(end_time)
+                    
+                    # Write SRT entry
+                    f.write(f"{i}\n")
+                    f.write(f"{start_srt} --> {end_srt}\n")
+                    f.write(f"{text}\n\n")
             
-            jlog(log, logging.WARNING,
-                 event="slide_transition_loop",
+            jlog(log, logging.INFO,
+                 event="subtitle_file_generated",
                  job_id=self.job_id,
-                 iteration=i,
-                 last_stream=last_stream,
-                 output_name=output_name,
-                 start_time=start_time)
-
-            filters.append(f"[{last_stream}][slide{i}]overlay=0:0:enable='gte(t,{start_time})'[{output_name}]")
-            last_stream = output_name
-
-        filter_str = ";".join(filters)
-        jlog(log, logging.WARNING,
-             event="slide_transition_filter",
-             job_id=self.job_id,
-             filter_complex=filter_str)
-        
-        return filter_str
+                 subtitle_path=str(srt_path),
+                 entries=len(slide_timeline))
+            
+            return str(srt_path)
+            
+        except Exception as e:
+            jlog(log, logging.ERROR,
+                 event="subtitle_generation_failed",
+                 job_id=self.job_id,
+                 error=str(e))
+            return None
+    
+    def _seconds_to_srt_time(self, seconds: float) -> str:
+        """Convert seconds to SRT timestamp format HH:MM:SS,mmm"""
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+        millisecs = int((seconds % 1) * 1000)
+        return f"{hours:02d}:{minutes:02d}:{secs:02d},{millisecs:03d}"
     
     def _get_video_metadata(self, video_path: Path) -> Dict[str, Any]:
         """Extract metadata from the final video using ffprobe"""

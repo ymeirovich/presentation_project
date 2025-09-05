@@ -14,25 +14,9 @@
       },
       "performance_tips": "Use hardware acceleration with -hwaccel auto for speed"
     },
-    "cached_at": 1756910324.845963,
+    "cached_at": 1757003519.399442,
     "library": "ffmpeg",
     "topic": "audio_extraction"
-  },
-  "d3c90a780fef6469d912b259d247613d": {
-    "data": {
-      "library": "ffmpeg",
-      "topic": "video_composition",
-      "status": "simulated",
-      "message": "Simulated documentation for ffmpeg:video_composition",
-      "best_practices": [
-        "Use current ffmpeg API patterns",
-        "Follow official documentation",
-        "Optimize for performance in demo scenarios"
-      ]
-    },
-    "cached_at": 1756910324.947655,
-    "library": "ffmpeg",
-    "topic": "video_composition"
   },
   "f92fe81cf1f8251d21f13ad228e82e84": {
     "data": {
@@ -50,7 +34,7 @@
       },
       "alternative": "Consider MediaPipe for better accuracy"
     },
-    "cached_at": 1756910324.947982,
+    "cached_at": 1757003519.4112918,
     "library": "opencv-python",
     "topic": "face_detection"
   },
@@ -71,34 +55,9 @@
       },
       "optimization": "Use GPU with device='cuda' if available"
     },
-    "cached_at": 1756910324.948151,
+    "cached_at": 1757003522.4806871,
     "library": "whisper",
     "topic": "transcription"
-  },
-  "54ddc5436ab31b57b16a98c387103cb7": {
-    "data": {
-      "optimal_method": "page.screenshot() with PNG format",
-      "current_api": "page.screenshot(path, type='png')",
-      "best_practices": [
-        "Use PNG format for text/graphics quality",
-        "Set explicit viewport for consistent sizing",
-        "Wait for network idle for dynamic content"
-      ],
-      "performance_settings": {
-        "type": "png",
-        "full_page": false,
-        "clip": {
-          "x": 0,
-          "y": 0,
-          "width": 1920,
-          "height": 1080
-        }
-      },
-      "optimization": "Use headless mode for speed"
-    },
-    "cached_at": 1756910324.948304,
-    "library": "playwright",
-    "topic": "screenshot"
   },
   "c327740cff07223645253675fc71d8c7": {
     "data": {
@@ -112,7 +71,7 @@
         "Optimize for performance in demo scenarios"
       ]
     },
-    "cached_at": 1756923344.610691,
+    "cached_at": 1757051196.130241,
     "library": "playwright",
     "topic": "html_to_png"
   }
