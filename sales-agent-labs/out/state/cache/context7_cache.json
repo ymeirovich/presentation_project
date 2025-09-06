@@ -1,4 +1,20 @@
 {
+  "c327740cff07223645253675fc71d8c7": {
+    "data": {
+      "library": "playwright",
+      "topic": "html_to_png",
+      "status": "simulated",
+      "message": "Simulated documentation for playwright:html_to_png",
+      "best_practices": [
+        "Use current playwright API patterns",
+        "Follow official documentation",
+        "Optimize for performance in demo scenarios"
+      ]
+    },
+    "cached_at": 1757051196.130241,
+    "library": "playwright",
+    "topic": "html_to_png"
+  },
   "421e51104b321033376ea6733bd8a5b6": {
     "data": {
       "optimal_command": "ffmpeg -i {input} -vn -acodec aac -ab 192k {output}",
@@ -14,7 +30,7 @@
       },
       "performance_tips": "Use hardware acceleration with -hwaccel auto for speed"
     },
-    "cached_at": 1757003519.399442,
+    "cached_at": 1757101646.1544,
     "library": "ffmpeg",
     "topic": "audio_extraction"
   },
@@ -34,7 +50,7 @@
       },
       "alternative": "Consider MediaPipe for better accuracy"
     },
-    "cached_at": 1757003519.4112918,
+    "cached_at": 1757101646.166854,
     "library": "opencv-python",
     "topic": "face_detection"
   },
@@ -55,24 +71,8 @@
       },
       "optimization": "Use GPU with device='cuda' if available"
     },
-    "cached_at": 1757003522.4806871,
+    "cached_at": 1757101649.1148102,
     "library": "whisper",
     "topic": "transcription"
-  },
-  "c327740cff07223645253675fc71d8c7": {
-    "data": {
-      "library": "playwright",
-      "topic": "html_to_png",
-      "status": "simulated",
-      "message": "Simulated documentation for playwright:html_to_png",
-      "best_practices": [
-        "Use current playwright API patterns",
-        "Follow official documentation",
-        "Optimize for performance in demo scenarios"
-      ]
-    },
-    "cached_at": 1757051196.130241,
-    "library": "playwright",
-    "topic": "html_to_png"
   }
 }

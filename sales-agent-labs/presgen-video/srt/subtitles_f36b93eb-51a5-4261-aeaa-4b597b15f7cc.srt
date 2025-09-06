@@ -1,0 +1,20 @@
+1
+00:00:00,000 --> 00:00:20,000
+Automates presentation creation from text reports, spreadsheets, and video content.
+
+2
+00:00:20,000 --> 00:00:40,000
+Generates structured slides with AI-created images and speaker notes.
+
+3
+00:00:40,000 --> 00:01:00,000
+Saves hours of manual work while ensuring consistent, professional results.
+
+4
+00:01:00,000 --> 00:01:20,000
+Takes text reports and generates structured slides with AI-created images.
+
+5
+00:01:20,000 --> 00:01:40,000
+Simply upload a document or paste your content to begin.
+

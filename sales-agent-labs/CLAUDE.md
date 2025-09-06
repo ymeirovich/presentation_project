@@ -57,8 +57,13 @@ This is an AI-powered presentation generation system with three main architectur
 - **slides.create**: Builds Google Slides presentations with content and images
 - **data.query**: Processes Excel data to generate insights and charts
 - **video.audio**: Extracts audio from video files using Context7-optimized ffmpeg patterns
-- **video.face**: Detects faces and calculates stable crop regions using OpenCV
+- **video.face**: Detects faces and calculates stable crop regions using OpenCV (used in Phase 2, not needed for Phase 3 full-screen composition)
 - **context7**: Provides real-time API documentation for video processing tools
+
+### Video Processing Pipeline (PresGen-Video)
+- **Phase 1**: Audio extraction and transcription using whisper subprocess
+- **Phase 2**: Content analysis and slide generation with face detection/cropping  
+- **Phase 3**: Full-screen video composition with natural SRT subtitle overlays (simplified architecture - no face cropping or 50/50 split needed)
 
 ## Configuration
 

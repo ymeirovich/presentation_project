@@ -29,7 +29,7 @@ class CompositionResult:
 
 
 class Phase3Orchestrator:
-    """Orchestrator for final 50/50 video composition with timed slide overlays"""
+    """Orchestrator for full-screen video composition with natural SRT subtitle overlays"""
     
     def __init__(self, job_id: str, job_data: Optional[Dict[str, Any]] = None):
         self.job_id = job_id
@@ -40,9 +40,9 @@ class Phase3Orchestrator:
         
     def compose_final_video(self) -> Dict[str, Any]:
         """
-        Create final video with 50/50 layout:
-        - Left side: Original cropped video
-        - Right side: Timed slide overlays
+        Create final video with full-screen layout and natural SRT subtitle overlay:
+        - Original video at full resolution
+        - Timed text overlays using SRT subtitles
         
         Returns:
             Dict with success status, output path, and processing time
@@ -69,8 +69,15 @@ class Phase3Orchestrator:
             if not slide_timeline:
                 return {"success": False, "error": "Failed to generate slide timeline"}
             
-            # 4. Create 50/50 composition using ffmpeg
-            output_path = self._create_50_50_composition(
+            # 3.5. Generate subtitle file for debugging/reference
+            subtitle_path = self._generate_subtitle_file(slide_timeline)
+            jlog(log, logging.INFO,
+                 event="subtitle_file_generated",
+                 job_id=self.job_id,
+                 subtitle_path=subtitle_path)
+            
+            # 4. Create full-screen composition with SRT overlay
+            output_path = self._create_fullscreen_composition(
                 video_assets, slide_timeline, job_data
             )
             if not output_path:
@@ -92,7 +99,8 @@ class Phase3Orchestrator:
                 "success": True,
                 "output_path": str(output_path),
                 "processing_time": processing_time,
-                "video_metadata": video_metadata
+                "video_metadata": video_metadata,
+                "corrected_timeline": slide_timeline  # Corrected timestamps for UI
             }
             
         except Exception as e:
@@ -160,25 +168,8 @@ class Phase3Orchestrator:
                     "total_duration": "02:30"
                 }
             
-            # Load crop region from provided data or use defaults
-            crop_region = {
-                "x": 483,
-                "y": 256, 
-                "width": 379,
-                "height": 379
-            }
-            
-            # Use provided crop region if available
-            if self._provided_job_data and "crop_region" in self._provided_job_data:
-                crop_region = self._provided_job_data["crop_region"]
-                jlog(log, logging.INFO,
-                     event="crop_region_loaded_from_provided",
-                     job_id=self.job_id,
-                     crop_region=crop_region)
-            
             return {
                 "summary": summary_data,
-                "crop_region": crop_region,
                 "video_metadata": {"width": 1280, "height": 720, "duration": 150.0, "fps": 30}
             }
             
@@ -190,10 +181,9 @@ class Phase3Orchestrator:
             return None
     
     def _prepare_video_assets(self, job_data: Dict[str, Any]) -> Optional[Dict[str, str]]:
-        """Prepare and validate all required video assets"""
+        """Prepare and validate video assets (simplified - only raw video needed)"""
         try:
             raw_video = self.job_dir / "raw_video.mp4"
-            slides_dir = self.job_dir / "slides"
             
             # Validate raw video exists
             if not raw_video.exists():
@@ -203,20 +193,8 @@ class Phase3Orchestrator:
                      expected_path=str(raw_video))
                 return None
             
-            # Validate slides exist
-            slide_files = list(slides_dir.glob("*.png")) if slides_dir.exists() else []
-            if len(slide_files) < 3:
-                jlog(log, logging.ERROR,
-                     event="insufficient_slides",
-                     job_id=self.job_id,
-                     slide_count=len(slide_files),
-                     slides_dir=str(slides_dir))
-                return None
-            
             return {
-                "raw_video": str(raw_video),
-                "slides_dir": str(slides_dir),
-                "slide_files": [str(f) for f in sorted(slide_files)]
+                "raw_video": str(raw_video)
             }
             
         except Exception as e:
@@ -227,19 +205,58 @@ class Phase3Orchestrator:
             return None
     
     def _generate_slide_timeline(self, job_data: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
-        """Generate timeline for slide overlays based on bullet points"""
+        """Generate timeline for slide overlays based on bullet points with video duration validation"""
         try:
             bullet_points = job_data["summary"]["bullet_points"]
             timeline = []
             
+            # Get actual video duration - try multiple sources
+            video_duration = self._get_actual_video_duration(job_data)
+            
+            jlog(log, logging.INFO,
+                 event="video_duration_check",
+                 job_id=self.job_id,
+                 video_duration=video_duration,
+                 bullet_count=len(bullet_points))
+            
+            # Sort bullets by original timestamp to maintain order
+            sorted_bullets = []
             for i, bullet in enumerate(bullet_points):
                 # Convert MM:SS timestamp to seconds
                 timestamp_parts = bullet["timestamp"].split(":")
                 start_seconds = int(timestamp_parts[0]) * 60 + int(timestamp_parts[1])
+                sorted_bullets.append((i, bullet, start_seconds))
+            
+            # Redistribute all timestamps to ensure they fit within video duration
+            # For a 66-second video with 5 bullets, distribute as: 0, 12, 24, 36, 48 (with 18-second buffer from end)
+            for idx, (original_index, bullet, original_timestamp) in enumerate(sorted_bullets):
+                if len(bullet_points) > 1:
+                    # Use more buffer to ensure last bullet displays fully before video ends
+                    buffer = 18  # 18-second buffer before video ends
+                    usable_duration = max(video_duration - buffer, 30)  # At least 30 seconds for safety
+                    # Distribute evenly: first at 0, rest distributed across usable duration
+                    if idx == 0:
+                        adjusted_start = 0
+                    else:
+                        # Spread remaining bullets evenly across remaining time
+                        time_per_bullet = usable_duration / (len(bullet_points) - 1)
+                        adjusted_start = int(idx * time_per_bullet)
+                else:
+                    adjusted_start = 0
+                
+                # Log if timestamp was adjusted
+                if original_timestamp != adjusted_start:
+                    jlog(log, logging.WARNING,
+                         event="timestamp_adjusted",
+                         job_id=self.job_id,
+                         bullet_index=idx+1,
+                         original_timestamp=original_timestamp,
+                         adjusted_timestamp=adjusted_start,
+                         video_duration=video_duration)
                 
                 timeline.append({
-                    "slide_index": i,
-                    "start_time": start_seconds,
+                    "slide_index": original_index,
+                    "start_time": adjusted_start,
                     "duration": bullet["duration"],
                     "text": bullet["text"]
                 })
@@ -247,7 +264,9 @@ class Phase3Orchestrator:
             jlog(log, logging.INFO,
                  event="slide_timeline_generated",
                  job_id=self.job_id,
-                 timeline_entries=len(timeline))
+                 timeline_entries=len(timeline),
+                 video_duration=video_duration,
+                 final_timestamps=[entry["start_time"] for entry in timeline])
             
             return timeline
             
@@ -258,28 +277,62 @@ class Phase3Orchestrator:
                  error=str(e))
             return None
     
-    def _create_50_50_composition(self, 
-                                video_assets: Dict[str, str], 
-                                slide_timeline: List[Dict[str, Any]],
-                                job_data: Dict[str, Any]) -> Optional[Path]:
-        """Create 50/50 video composition using ffmpeg"""
+    def _get_actual_video_duration(self, job_data: Dict[str, Any]) -> float:
+        """Get actual video duration using ffprobe (most reliable method)"""
+        # ALWAYS use ffprobe for accurate duration - job metadata can be wrong
+        try:
+            raw_video_path = self.job_dir / "raw_video.mp4"
+            if raw_video_path.exists():
+                metadata = self._get_video_metadata(raw_video_path)
+                if metadata and "duration" in metadata:
+                    duration = metadata["duration"]
+                    jlog(log, logging.INFO,
+                         event="video_duration_from_ffprobe",
+                         job_id=self.job_id,
+                         duration=duration,
+                         source="ffprobe_direct")
+                    return float(duration)
+        except Exception as e:
+            jlog(log, logging.WARNING,
+                 event="video_duration_probe_failed",
+                 job_id=self.job_id,
+                 error=str(e))
+        
+        # Fallback: Try to get from job metadata (less reliable)
+        if "video_metadata" in job_data:
+            duration = job_data["video_metadata"].get("duration")
+            if duration:
+                jlog(log, logging.WARNING,
+                     event="video_duration_from_metadata_fallback",
+                     job_id=self.job_id,
+                     duration=duration,
+                     message="Using job metadata as fallback - may be inaccurate")
+                return float(duration)
+        
+        # Default to 66 seconds (1:06)
+        jlog(log, logging.WARNING,
+             event="video_duration_default",
+             job_id=self.job_id,
+             default_duration=66)
+        return 66.0
+    
+    def _create_fullscreen_composition(self, 
+                                     video_assets: Dict[str, str], 
+                                     slide_timeline: List[Dict[str, Any]],
+                                     job_data: Dict[str, Any]) -> Optional[Path]:
+        """Create full-screen video with natural SRT subtitle overlay"""
         try:
             raw_video = video_assets["raw_video"]
-            slide_files = video_assets["slide_files"]
-            crop_region = job_data["crop_region"]
             output_path = self.output_dir / f"final_video_{self.job_id}.mp4"
             
-            # Build ffmpeg command for 50/50 composition
-            cmd = self._build_ffmpeg_command(raw_video, slide_files, slide_timeline, 
-                                           crop_region, output_path)
+            # Build simplified ffmpeg command for full-screen with SRT overlay
+            cmd = self._build_fullscreen_ffmpeg_command(raw_video, slide_timeline, output_path)
             
             jlog(log, logging.INFO,
                  event="ffmpeg_command_start",
                  job_id=self.job_id,
                  command=" ".join(cmd),  # Log full command for debugging
-                 input_video=raw_video,
-                 slide_files=slide_files[:3],
-                 crop_region=crop_region)
+                 input_video=raw_video)
             
             # Execute ffmpeg command
             result = subprocess.run(
@@ -328,82 +381,126 @@ class Phase3Orchestrator:
                  error=str(e))
             return None
     
-    def _build_ffmpeg_command(self, 
-                            raw_video: str, 
-                            slide_files: List[str],
-                            slide_timeline: List[Dict[str, Any]],
-                            crop_region: Dict[str, str],
-                            output_path: Path) -> List[str]:
-        """Build complex ffmpeg command for 50/50 composition with subtitle-based text overlay"""
+    def _build_fullscreen_ffmpeg_command(self, 
+                                        raw_video: str, 
+                                        slide_timeline: List[Dict[str, Any]],
+                                        output_path: Path) -> List[str]:
+        """Build simplified ffmpeg command for full-screen video with right-side highlights rectangle"""
         
-        # Generate subtitle file for text overlays
-        subtitle_path = self._generate_subtitle_file(slide_timeline)
-        if not subtitle_path:
-            raise Exception("Failed to generate subtitle file")
+        # Build drawtext filters for right-side rectangle with numbered bullet highlights
+        drawtext_filters = self._build_drawtext_filters(slide_timeline)
+        if not drawtext_filters:
+            raise Exception("Failed to generate drawtext filters")
         
-        # Base command with input video
+        # Command with drawtext filters for precise positioning
         cmd = [
             "ffmpeg", "-y",  # Overwrite output
-            "-i", raw_video
-        ]
-        
-        # Add slide images as inputs (we'll use the first one as background)
-        for slide_file in slide_files[:1]:  # Only need first slide as background
-            cmd.extend(["-i", slide_file])
-        
-        # Build complex filter for 50/50 layout with subtitle overlay
-        filter_complex = self._build_filter_complex(slide_timeline, crop_region, len(slide_files), subtitle_path)
-        
-        cmd.extend([
-            "-filter_complex", filter_complex,
-            "-map", "[v]",      # Map the filtered video output
-            "-map", "0:a",      # Map the original audio
+            "-i", raw_video,
+            "-vf", drawtext_filters,
             "-c:v", "libx264",  # Video codec
-            "-c:a", "aac",      # Audio codec
+            "-c:a", "aac",      # Audio codec  
             "-preset", "medium", # Balance between quality and speed
             "-crf", "23",       # Quality setting (lower = better quality)
-            "-r", "30",         # Frame rate
             str(output_path)
-        ])
+        ]
         
         return cmd
     
-    def _build_filter_complex(self, 
-                            slide_timeline: List[Dict[str, Any]], 
-                            crop_region: Dict[str, str],
-                            num_slides: int,
-                            subtitle_path: str) -> str:
-        """Build the complex filter for 50/50 video composition with subtitle overlay"""
+    def _build_drawtext_filters(self, slide_timeline: List[Dict[str, Any]]) -> str:
+        """Build drawtext filters with right-side rectangle and numbered bullet highlights"""
+        if not slide_timeline:
+            return ""
+            
+        filter_parts = []
         
-        # Crop the original video to the face region
-        x, y, w, h = crop_region["x"], crop_region["y"], crop_region["width"], crop_region["height"]
+        # 1. Add white rectangle (25% of screen width, positioned on the right)
+        # Use fixed coordinates assuming 1280x720 video (320px width, positioned at x=960)
+        rect_filter = (
+            "drawbox="
+            "x=960:y=0:"              # Position at 960px from left (right 320px)
+            "w=320:h=720:"            # Width=320px (25% of 1280), height=720px
+            "color=white:t=fill"       # Solid white fill
+        )
+        filter_parts.append(rect_filter)
         
-        # Create left side (cropped video)
-        left_filter = f"[0:v]crop={w}:{h}:{x}:{y},scale=640:720[left]"
+        # 2. Add static "Highlights" title at top-center of rectangle  
+        title_filter = (
+            "drawtext=text='Highlights':"
+            "fontsize=28:"
+            "fontcolor=navy:"
+            "x=960+(320-text_w)/2:"        # Center within the 320px rectangle
+            "y=20"                         # 20px margin from top
+        )
+        filter_parts.append(title_filter)
         
-        # Create right side - static background with subtitle text overlay
-        if num_slides >= 1:
-            # Use first slide as background, add subtitle text overlay
-            right_filter = (
-                f"[1:v]scale=640:720,"
-                f"subtitles='{subtitle_path}':force_style='FontSize=12,PrimaryColour=&Hffffff,OutlineColour=&H000000,BorderStyle=3,Outline=2,Shadow=1,MarginV=50'[right]"
-            )
-        else:
-            # Fallback to solid background with subtitles
-            right_filter = (
-                f"color=c=black:s=640x720:d=0,"
-                f"subtitles='{subtitle_path}':force_style='FontSize=12,PrimaryColour=&Hffffff,OutlineColour=&H000000,BorderStyle=3,Outline=2,Shadow=1,MarginV=50'[right]"
-            )
+        # 3. Add numbered bullet points within the rectangle
+        for i, entry in enumerate(slide_timeline, 1):
+            start_time = entry['start_time']
+            text = entry['text'].replace("'", "\\'").replace(":", "\\:")  # Escape special chars
+            
+            # Prepend with numbered index
+            numbered_text = f"#{i} {text}"
+            
+            # Break long text into multiple lines to fit within 300px width (approximately 25-30 chars per line at 20px font)
+            wrapped_lines = self._wrap_text_for_rectangle(numbered_text, max_chars_per_line=25)
+            
+            # Create multiple drawtext filters for wrapped text
+            # Add 20px margin-bottom to each bullet (space after each bullet)
+            base_start = 60
+            base_spacing = 80  # Base spacing between bullets
+            margin_bottom = 20  # 20px margin-bottom for each bullet
+            # For margin-bottom: add space after each bullet (except the last one)
+            extra_margin = margin_bottom if i < len(slide_timeline) else 0  # Add margin-bottom except for last bullet
+            additional_margin = (i-1) * (10 + margin_bottom)  # Progressive spacing includes margin-bottom
+            
+            for line_idx, line in enumerate(wrapped_lines):
+                bullet_filter = (
+                    f"drawtext=text='{line}':"
+                    f"fontsize=20:"                  # 20px font size
+                    f"fontcolor=navy:"
+                    f"x=970:"                        # 10px margin from left edge of rectangle (960+10)
+                    f"y={base_start + extra_margin + additional_margin + (i-1)*base_spacing + line_idx*22}:"  # Tighter spacing
+                    f"enable='gte(t,{start_time})'"  # Show from start time and KEEP visible (no end time)
+                )
+                filter_parts.append(bullet_filter)
         
-        # Combine left and right
-        filter_complex = f"{left_filter};{right_filter};[left][right]hstack=inputs=2[v]"
+        # Chain all filters together
+        return ",".join(filter_parts)
+    
+    def _wrap_text_for_rectangle(self, text: str, max_chars_per_line: int = 25) -> List[str]:
+        """Wrap text to fit within rectangle width"""
+        words = text.split()
+        lines = []
+        current_line = ""
         
-        return filter_complex
+        for word in words:
+            # Check if adding this word would exceed the line limit
+            test_line = current_line + (" " if current_line else "") + word
+            if len(test_line) <= max_chars_per_line:
+                current_line = test_line
+            else:
+                # Start a new line
+                if current_line:
+                    lines.append(current_line)
+                current_line = word
+                
+                # Handle very long words that exceed line limit
+                if len(word) > max_chars_per_line:
+                    # Split long word
+                    while len(current_line) > max_chars_per_line:
+                        lines.append(current_line[:max_chars_per_line-1] + "-")
+                        current_line = current_line[max_chars_per_line-1:]
+        
+        # Add the last line
+        if current_line:
+            lines.append(current_line)
+            
+        return lines if lines else [""]
     
     def _generate_subtitle_file(self, slide_timeline: List[Dict[str, Any]]) -> str:
         """Generate SRT subtitle file for timed text overlays"""
         # Use the presgen-video/srt directory
-        srt_dir = Path("presgen-video/srt")
+        srt_dir = Path("presgen-video/subtitles")
         srt_dir.mkdir(parents=True, exist_ok=True)
         srt_path = srt_dir / f"subtitles_{self.job_id}.srt"
         

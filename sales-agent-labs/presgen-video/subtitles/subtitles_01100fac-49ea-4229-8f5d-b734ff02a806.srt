@@ -1,0 +1,20 @@
+1
+00:00:00,000 --> 00:00:20,000
+Automates presentation creation from text reports, spreadsheets, and video content.
+
+2
+00:00:11,000 --> 00:00:31,000
+Generates structured slides with AI-created images and speaker notes.
+
+3
+00:00:23,000 --> 00:00:43,000
+Saves hours of manual work while ensuring consistent, professional results.
+
+4
+00:00:35,000 --> 00:00:55,000
+Upload documents or paste content to generate structured slides.
+
+5
+00:00:47,000 --> 00:01:07,000
+Gemini AI creates compelling narratives automatically.
+

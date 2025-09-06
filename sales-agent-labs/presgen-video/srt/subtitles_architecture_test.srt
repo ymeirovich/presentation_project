@@ -1,0 +1,12 @@
+1
+00:00:10,000 --> 00:00:25,000
+Introduction to the new architecture
+
+2
+00:00:30,000 --> 00:00:50,000
+Key benefits: simplicity and natural overlays
+
+3
+00:00:55,000 --> 00:01:13,000
+Full-screen video with subtitle transitions
+

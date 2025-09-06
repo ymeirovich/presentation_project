@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test simplified ffmpeg command for 50/50 video composition
+Test simplified ffmpeg command for full-screen video with SRT subtitle overlay
 """
 
 import subprocess
